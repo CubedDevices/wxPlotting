@@ -61,7 +61,6 @@ wxPlottingFrame::wxPlottingFrame()
     // Canvas grows with the client; scrollbars only if the client shrinks
     // below this minimum.  Raise min height later as series data grows.
     m_plot = new wxPlotting(this, wxID_ANY);
-    m_plot->SetMinDrawingSize(wxSize(800, 600));
     m_plot->CreateDefaultPlot();
     m_plot->UpdatePlot();
 

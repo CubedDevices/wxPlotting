@@ -17,7 +17,7 @@
 // Minimum canvas floor.  The effective canvas grows with the client area
 // above this; scrollbars appear only when the client is smaller.
 // Raise the minimum later (SetMinDrawingHeight) as series data is added.
-const wxSize wxPlotting::DefaultMinDrawingSize(800, 600);
+const wxSize wxPlotting::DefaultMinDrawingSize(200, 200);
 
 // ----------------------------------------------------------------------------
 // event table / RTTI
@@ -141,6 +141,7 @@ void wxPlotting::CreateDefaultPlot()
         series1.Data.push_back(wxRealPoint(i, i));
     }
 
+    //SetMinDrawingSize(wxSize(800, 600));
 
 }
 
