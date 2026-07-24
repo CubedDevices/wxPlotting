@@ -23,6 +23,9 @@
 // DrawPlot() (or fill it in) when real plot content is ready.
 // ----------------------------------------------------------------------------
 
+#include <list>
+#include "axis.h"
+
 class wxPlotting : public wxControl
 {
 public:
@@ -43,8 +46,14 @@ public:
 
     virtual ~wxPlotting();
 
+    // Create a default plot
+    void CreateDefaultPlot();
+
     // Rebuild the off-screen buffer and refresh the control.
     void UpdatePlot();
+
+    void SetMargin(int margin);
+    int  GetMargin() const;
 
     // Access the off-screen buffer (valid after the first size/paint).
     const wxBitmap& GetBuffer() const { return m_buffer; }
@@ -66,8 +75,14 @@ protected:
 
     wxSize DoGetBestClientSize() const override;
 
+
 private:
+
+    std::list<Axis> m_axisList;
+
     wxBitmap m_buffer;
+    wxBitmap m_plotBuffer;
+    int m_margin = 50;
 
     wxDECLARE_DYNAMIC_CLASS(wxPlotting);
     wxDECLARE_EVENT_TABLE();

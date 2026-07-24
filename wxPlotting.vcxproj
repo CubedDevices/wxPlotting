@@ -153,6 +153,7 @@
     <ClCompile Include="wxPlottingApp.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="axis.h" />
     <ClInclude Include="wxPlotting.h" />
     <ClInclude Include="wxPlottingApp.h" />
   </ItemGroup>

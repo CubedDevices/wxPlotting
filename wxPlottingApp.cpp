@@ -59,6 +59,7 @@ wxPlottingFrame::wxPlottingFrame()
 
     // Host the plotting control in the client area.
     m_plot = new wxPlotting(this, wxID_ANY);
+    m_plot->CreateDefaultPlot();
 
     wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
     sizer->Add(m_plot, 1, wxEXPAND | wxALL, 0);

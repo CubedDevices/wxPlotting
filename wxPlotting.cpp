@@ -74,12 +74,67 @@ wxPlotting::~wxPlotting()
 // public API
 // ----------------------------------------------------------------------------
 
+void wxPlotting::CreateDefaultPlot()
+{
+    Axis horz("hor", Axis::Horizontal);
+    Axis vert("vert", Axis::Vertical);
+
+    horz.SetForegrond(wxColor("Green"));
+    vert.SetForegrond(wxColor("Green"));
+    horz.SetVisible(false);
+    vert.SetVisible(false);
+    horz.SetWidth(5);
+    vert.SetWidth(5);
+
+    Axis test1("test1", Axis::Horizontal);
+    test1.SetForegrond(wxColor("Green"));
+    test1.SetVisible(true);
+    test1.SetWidth(2);
+    test1.SetPosition(0.05);
+    test1.SetRange(0.05, 0.95);
+
+    Axis test2("test2", Axis::Vertical);
+    test2.SetForegrond(wxColor("Magenta"));
+    test2.SetVisible(true);
+    test2.SetWidth(2);
+    test2.SetPosition(0.05);
+    test2.SetRange(0.05, 0.20);
+
+    Axis test3("test3", Axis::Vertical);
+    test3.SetForegrond(wxColor("Cyan"));
+    test3.SetVisible(true);
+    test3.SetWidth(2);
+    test3.SetPosition(0.05);
+    test3.SetRange(0.25, 0.40);
+
+
+
+    m_axisList.push_back(horz);
+    m_axisList.push_back(vert);
+    m_axisList.push_back(test1);
+    m_axisList.push_back(test2);
+    m_axisList.push_back(test3);
+
+}
+
+
 void wxPlotting::UpdatePlot()
 {
     Render();
     Refresh(false);
     Update();
 }
+
+void wxPlotting::SetMargin(int value)
+{
+    m_margin = value;
+}
+
+int wxPlotting::GetMargin() const
+{
+    return m_margin;
+}
+
 
 // ----------------------------------------------------------------------------
 // sizing / preferred size
@@ -97,11 +152,13 @@ wxSize wxPlotting::DoGetBestClientSize() const
 void wxPlotting::RecreateBuffer()
 {
     const wxSize size = GetClientSize();
-    if ( size.x <= 0 || size.y <= 0 )
+    if ( size.x <= 2 * m_margin || size.y <= 2 * m_margin)
         return;
 
     if ( !m_buffer.IsOk() || m_buffer.GetSize() != size )
     {
+        auto plotSize = wxSize(size.x - (2*m_margin), size.y - (2*m_margin));
+        m_plotBuffer = wxBitmap(plotSize);
         m_buffer = wxBitmap(size);
     }
 }
@@ -113,9 +170,15 @@ void wxPlotting::Render()
         return;
 
     wxMemoryDC memDC;
-    memDC.SelectObject(m_buffer);
+    memDC.SelectObject(m_plotBuffer);
+    DrawPlot(memDC, m_plotBuffer.GetSize());
 
-    DrawPlot(memDC, m_buffer.GetSize());
+
+    memDC.SelectObject(m_buffer);
+    memDC.SetBackground(wxBrush(GetBackgroundColour()));
+    memDC.Clear();
+
+    memDC.DrawBitmap(m_plotBuffer, m_margin, m_margin, false);
 
     memDC.SelectObject(wxNullBitmap);
 }
@@ -130,6 +193,56 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
     dc.SetBackground(wxBrush(GetBackgroundColour()));
     dc.Clear();
 
+    wxPen penBorder(wxColor("White"));
+    dc.SetPen(penBorder);
+    dc.DrawLine(wxPoint(0, 0), wxPoint(size.GetWidth() - 1, 0));
+    dc.DrawLine(wxPoint(size.GetWidth()-1, 0), wxPoint(size.GetWidth() - 1, size.GetHeight() - 1));
+    dc.DrawLine(wxPoint(size.GetWidth() - 1, size.GetHeight() - 1), wxPoint(0, size.GetHeight() - 1));
+    dc.DrawLine(wxPoint(0, size.GetHeight() - 1), wxPoint(0, 0));
+
+
+
+    for (auto iter = m_axisList.begin();
+        iter != m_axisList.end();
+        ++iter)
+    {
+        if (iter->GetVisible() == false) continue;
+
+        if (iter->GetAxisType() == Axis::Horizontal)
+        {
+            wxPoint startPt, endPt;
+
+            startPt.x = iter->GetRangeStart() * size.GetWidth();
+            startPt.y = size.GetHeight() - (iter->GetPosition() * size.GetHeight());
+            endPt.x = iter->GetRangeEnd() * size.GetWidth();
+            endPt.y = size.GetHeight() - (iter->GetPosition() * size.GetHeight());
+
+            wxPen pen;
+            pen.SetWidth(iter->GetWidth());
+            pen.SetColour(iter->GetForeground());
+            dc.SetPen(pen);
+
+            dc.DrawLine(startPt, endPt);
+        }
+        else if (iter->GetAxisType() == Axis::Vertical)
+        {
+            wxPoint startPt, endPt;
+
+            startPt.y = size.GetHeight() - (iter->GetRangeStart() * size.GetHeight());
+            startPt.x = iter->GetPosition() * size.GetWidth();
+            endPt.y = size.GetHeight() - (iter->GetRangeEnd() * size.GetHeight());
+            endPt.x = iter->GetPosition() * size.GetWidth();
+
+            wxPen pen;
+            pen.SetWidth(iter->GetWidth());
+            pen.SetColour(iter->GetForeground());
+            dc.SetPen(pen);
+
+            dc.DrawLine(startPt, endPt);
+        }
+    }
+
+    /*
     dc.SetPen(wxPen(GetForegroundColour()));
     dc.SetTextForeground(GetForegroundColour());
     dc.SetFont(GetFont());
@@ -143,6 +256,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
     // Simple border so the control bounds are obvious during testing.
     dc.SetBrush(*wxTRANSPARENT_BRUSH);
     dc.DrawRectangle(0, 0, size.x, size.y);
+    */
 }
 
 // ----------------------------------------------------------------------------
