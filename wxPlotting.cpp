@@ -11,12 +11,20 @@
 #include "wx/settings.h"
 
 // ----------------------------------------------------------------------------
+// constants
+// ----------------------------------------------------------------------------
+
+// Large enough that scrollbars show in a typical test frame; grow later
+// via SetDrawingHeight as series data is added.
+const wxSize wxPlotting::DefaultDrawingSize(1200, 800);
+
+// ----------------------------------------------------------------------------
 // event table / RTTI
 // ----------------------------------------------------------------------------
 
-wxIMPLEMENT_DYNAMIC_CLASS(wxPlotting, wxControl);
+wxIMPLEMENT_DYNAMIC_CLASS(wxPlotting, wxScrolledWindow);
 
-wxBEGIN_EVENT_TABLE(wxPlotting, wxControl)
+wxBEGIN_EVENT_TABLE(wxPlotting, wxScrolledWindow)
     EVT_PAINT(wxPlotting::OnPaint)
     EVT_SIZE(wxPlotting::OnSize)
     EVT_ERASE_BACKGROUND(wxPlotting::OnEraseBackground)
@@ -27,6 +35,7 @@ wxEND_EVENT_TABLE()
 // ----------------------------------------------------------------------------
 
 wxPlotting::wxPlotting()
+    : m_drawingSize(DefaultDrawingSize)
 {
 }
 
@@ -36,6 +45,7 @@ wxPlotting::wxPlotting(wxWindow* parent,
                        const wxSize& size,
                        long style,
                        const wxString& name)
+    : m_drawingSize(DefaultDrawingSize)
 {
     Create(parent, id, pos, size, style, name);
 }
@@ -47,11 +57,12 @@ bool wxPlotting::Create(wxWindow* parent,
                         long style,
                         const wxString& name)
 {
-    // wxBORDER_NONE keeps the client area fully available for plotting.
-    // Callers may still pass border styles via style.
-    if ( !wxControl::Create(parent, id, pos, size,
-                            style | wxFULL_REPAINT_ON_RESIZE,
-                            wxDefaultValidator, name) )
+    // wxHSCROLL / wxVSCROLL enable scrollbars when the viewport is smaller
+    // than the fixed drawing (virtual) size.
+    if ( !wxScrolledWindow::Create(parent, id, pos, size,
+                                   style | wxFULL_REPAINT_ON_RESIZE |
+                                   wxHSCROLL | wxVSCROLL,
+                                   name) )
     {
         return false;
     }
@@ -60,6 +71,11 @@ bool wxPlotting::Create(wxWindow* parent,
     SetBackgroundColour(*wxBLACK);
     SetForegroundColour(*wxWHITE);
 
+    // Scroll a modest number of pixels per line/page unit.
+    SetScrollRate(20, 20);
+    EnableScrolling(true, true);
+
+    UpdateScrollbars();
     RecreateBuffer();
     Render();
 
@@ -135,12 +151,43 @@ void wxPlotting::UpdatePlot()
 
 void wxPlotting::SetMargin(int value)
 {
+    if ( m_margin == value )
+        return;
+
     m_margin = value;
+    RecreateBuffer();
+    Render();
+    Refresh(false);
 }
 
 int wxPlotting::GetMargin() const
 {
     return m_margin;
+}
+
+void wxPlotting::SetDrawingSize(const wxSize& size)
+{
+    if ( size.x < 1 || size.y < 1 )
+        return;
+
+    if ( size == m_drawingSize )
+        return;
+
+    m_drawingSize = size;
+    UpdateScrollbars();
+    RecreateBuffer();
+    Render();
+    Refresh(false);
+}
+
+void wxPlotting::SetDrawingWidth(int width)
+{
+    SetDrawingSize(wxSize(width, m_drawingSize.y));
+}
+
+void wxPlotting::SetDrawingHeight(int height)
+{
+    SetDrawingSize(wxSize(m_drawingSize.x, height));
 }
 
 
@@ -150,22 +197,32 @@ int wxPlotting::GetMargin() const
 
 wxSize wxPlotting::DoGetBestClientSize() const
 {
-    return wxSize(400, 300);
+    // Prefer a viewport smaller than the full canvas so scrollbars are used.
+    return wxSize(wxMin(m_drawingSize.x, 800),
+                  wxMin(m_drawingSize.y, 600));
 }
 
 // ----------------------------------------------------------------------------
-// buffer management
+// buffer / scroll management
 // ----------------------------------------------------------------------------
+
+void wxPlotting::UpdateScrollbars()
+{
+    // Virtual size is the fixed drawing canvas; scrollbars appear when the
+    // client (viewport) is smaller than this.
+    SetVirtualSize(m_drawingSize);
+}
 
 void wxPlotting::RecreateBuffer()
 {
-    const wxSize size = GetClientSize();
-    if ( size.x <= 2 * m_margin || size.y <= 2 * m_margin)
+    const wxSize size = m_drawingSize;
+    if ( size.x <= 2 * m_margin || size.y <= 2 * m_margin )
         return;
 
     if ( !m_buffer.IsOk() || m_buffer.GetSize() != size )
     {
-        auto plotSize = wxSize(size.x - (2*m_margin), size.y - (2*m_margin));
+        const wxSize plotSize(size.x - (2 * m_margin),
+                              size.y - (2 * m_margin));
         m_plotBuffer = wxBitmap(plotSize);
         m_buffer = wxBitmap(size);
     }
@@ -174,7 +231,7 @@ void wxPlotting::RecreateBuffer()
 void wxPlotting::Render()
 {
     RecreateBuffer();
-    if ( !m_buffer.IsOk() )
+    if ( !m_buffer.IsOk() || !m_plotBuffer.IsOk() )
         return;
 
     wxMemoryDC memDC;
@@ -274,6 +331,8 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 void wxPlotting::OnPaint(wxPaintEvent& WXUNUSED(event))
 {
     wxPaintDC dc(this);
+    // Map logical (canvas) coordinates through the current scroll offset.
+    DoPrepareDC(dc);
 
     if ( !m_buffer.IsOk() )
     {
@@ -287,8 +346,8 @@ void wxPlotting::OnPaint(wxPaintEvent& WXUNUSED(event))
 
 void wxPlotting::OnSize(wxSizeEvent& event)
 {
-    RecreateBuffer();
-    Render();
+    // Viewport changed only — drawing size (and buffers) stay fixed.
+    // wxScrolledWindow adjusts scrollbar ranges from virtual vs client size.
     Refresh(false);
     event.Skip();
 }

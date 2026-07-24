@@ -58,8 +58,12 @@ wxPlottingFrame::wxPlottingFrame()
     SetStatusText("wxPlotting owner-drawn control test");
 
     // Host the plotting control in the client area.
+    // Drawing size is fixed (virtual canvas); scrollbars appear when the
+    // frame viewport is smaller.  Call SetDrawingHeight later as data grows.
     m_plot = new wxPlotting(this, wxID_ANY);
+    m_plot->SetDrawingSize(wxSize(1200, 800));
     m_plot->CreateDefaultPlot();
+    m_plot->UpdatePlot();
 
     wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
     sizer->Add(m_plot, 1, wxEXPAND | wxALL, 0);

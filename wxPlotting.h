@@ -10,7 +10,7 @@
 #include "wx/wxprec.h"
 
 #ifndef WX_PRECOMP
-    #include "wx/control.h"
+    #include "wx/scrolwin.h"
     #include "wx/bitmap.h"
     #include "wx/dcmemory.h"
 #endif
@@ -18,18 +18,22 @@
 // ----------------------------------------------------------------------------
 // wxPlotting
 //
-// Owner-drawn wxControl that renders into an off-screen wxBitmap via
-// wxMemoryDC, then blits that buffer to the screen on paint.  Override
-// DrawPlot() (or fill it in) when real plot content is ready.
+// Owner-drawn scrolled window that renders into an off-screen wxBitmap via
+// wxMemoryDC at a fixed drawing size (virtual canvas).  Scrollbars appear
+// when the viewport is smaller than the drawing size.  Grow the canvas later
+// (e.g. as series data is added) with SetDrawingSize / SetDrawingHeight.
 // ----------------------------------------------------------------------------
 
 #include <list>
 #include "axis.h"
 #include "series.h"
 
-class wxPlotting : public wxControl
+class wxPlotting : public wxScrolledWindow
 {
 public:
+    // Default virtual canvas size used when none is supplied.
+    static const wxSize DefaultDrawingSize;
+
     wxPlotting();
     wxPlotting(wxWindow* parent,
                wxWindowID id = wxID_ANY,
@@ -56,13 +60,23 @@ public:
     void SetMargin(int margin);
     int  GetMargin() const;
 
+    // Fixed drawing (virtual canvas) size.  Independent of the window/viewport.
+    // Changing this recreates the MemoryDC buffers and updates scrollbars.
+    void SetDrawingSize(const wxSize& size);
+    wxSize GetDrawingSize() const { return m_drawingSize; }
+
+    void SetDrawingWidth(int width);
+    void SetDrawingHeight(int height);
+    int  GetDrawingWidth() const  { return m_drawingSize.x; }
+    int  GetDrawingHeight() const { return m_drawingSize.y; }
+
     // Access the off-screen buffer (valid after the first size/paint).
     const wxBitmap& GetBuffer() const { return m_buffer; }
 
 protected:
     // Draw plot content into the provided memory DC.
-    // size is the client size of the control (and of the selected bitmap).
-    // Default implementation fills a dark background and draws a placeholder.
+    // size is the plot area size (drawing size minus margins).
+    // Default implementation fills a dark background and draws axes.
     virtual void DrawPlot(wxMemoryDC& dc, const wxSize& size);
 
     // Event handlers
@@ -73,18 +87,20 @@ protected:
     // Buffer management
     void RecreateBuffer();
     void Render();
+    void UpdateScrollbars();
 
     wxSize DoGetBestClientSize() const override;
 
-
 private:
-
     std::list<Axis> m_axisList;
     std::list<Series> m_seriesList;
 
     wxBitmap m_buffer;
     wxBitmap m_plotBuffer;
     int m_margin = 50;
+
+    // Virtual canvas size for the full drawing (including margins).
+    wxSize m_drawingSize;
 
     wxDECLARE_DYNAMIC_CLASS(wxPlotting);
     wxDECLARE_EVENT_TABLE();
