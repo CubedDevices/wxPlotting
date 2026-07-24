@@ -33,32 +33,15 @@ public:
         return m_axisType;
     }
 
-    void SetVisible(bool cond)
-    {
-        m_visible = cond;
-    }
+    bool     Visible;
 
-    bool    GetVisible() const {
-        return m_visible;
-    }
-
-    int     GetWidth() const {
-        return m_width;
-    }
-
-    void SetWidth(int value) {
-        m_width = value;
-    }
-
-    void SetForegrond(const wxColor& color)
-    {
-        m_foreground = color;
-    }
-
-    const wxColor& GetForeground() const {
-        return m_foreground;
-    }
-
+    int      Width;
+    wxColor  Foreground;
+    bool     TickMarks;
+    wxColor  TickColor;
+    bool     Labels;
+    wxColor  LabelColor;
+    double   Scale;
 
 
     double  GetStart() const {
@@ -95,11 +78,8 @@ protected:
 
     // must be unique among all axes
     wxString m_name;
-
     AxisType m_axisType;
-    bool     m_visible;
-    int      m_width;
-    wxColor  m_foreground;
+
 
     double m_start = 0.0;
     double m_end = 1.0;

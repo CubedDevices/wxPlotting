@@ -79,41 +79,49 @@ void wxPlotting::CreateDefaultPlot()
     Axis horz("hor", Axis::Horizontal);
     Axis vert("vert", Axis::Vertical);
 
-    horz.SetForegrond(wxColor("Green"));
-    vert.SetForegrond(wxColor("Green"));
-    horz.SetVisible(false);
-    vert.SetVisible(false);
-    horz.SetWidth(5);
-    vert.SetWidth(5);
+    horz.Foreground = wxColor("Green");
+    vert.Foreground = wxColor("Green");
+    horz.Visible = false;
+    vert.Visible = false;
+    horz.Width = 5;
+    vert.Width = 5;
 
     Axis test1("test1", Axis::Horizontal);
-    test1.SetForegrond(wxColor("Green"));
-    test1.SetVisible(true);
-    test1.SetWidth(2);
+    test1.Foreground = (wxColor("Green"));
+    test1.Visible = (true);
+    test1.Width = (2);
     test1.SetPosition(0.05);
     test1.SetRange(0.05, 0.95);
 
     Axis test2("test2", Axis::Vertical);
-    test2.SetForegrond(wxColor("Magenta"));
-    test2.SetVisible(true);
-    test2.SetWidth(2);
+    test2.Foreground = (wxColor("Magenta"));
+    test2.Visible =(true);
+    test2.Width = (2);
     test2.SetPosition(0.05);
     test2.SetRange(0.05, 0.20);
 
     Axis test3("test3", Axis::Vertical);
-    test3.SetForegrond(wxColor("Cyan"));
-    test3.SetVisible(true);
-    test3.SetWidth(2);
+    test3.Foreground = (wxColor("Cyan"));
+    test3.Visible = (true);
+    test3.Width = (2);
     test3.SetPosition(0.05);
     test3.SetRange(0.25, 0.40);
-
-
 
     m_axisList.push_back(horz);
     m_axisList.push_back(vert);
     m_axisList.push_back(test1);
     m_axisList.push_back(test2);
     m_axisList.push_back(test3);
+
+    Series series1("Series1", Series::Doubles);
+    series1.HorizontalAxis = wxString("test1");
+    series1.VerticalAxis = wxString("test2");
+
+    for (auto i = 0; i < 100; i++)
+    {
+        series1.Data.push_back(wxRealPoint(i, i));
+    }
+
 
 }
 
@@ -206,7 +214,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
         iter != m_axisList.end();
         ++iter)
     {
-        if (iter->GetVisible() == false) continue;
+        if (iter->Visible == false) continue;
 
         if (iter->GetAxisType() == Axis::Horizontal)
         {
@@ -218,8 +226,8 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
             endPt.y = size.GetHeight() - (iter->GetPosition() * size.GetHeight());
 
             wxPen pen;
-            pen.SetWidth(iter->GetWidth());
-            pen.SetColour(iter->GetForeground());
+            pen.SetWidth(iter->Width);
+            pen.SetColour(iter->Foreground);
             dc.SetPen(pen);
 
             dc.DrawLine(startPt, endPt);
@@ -234,8 +242,8 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
             endPt.x = iter->GetPosition() * size.GetWidth();
 
             wxPen pen;
-            pen.SetWidth(iter->GetWidth());
-            pen.SetColour(iter->GetForeground());
+            pen.SetWidth(iter->Width);
+            pen.SetColour(iter->Foreground);
             dc.SetPen(pen);
 
             dc.DrawLine(startPt, endPt);

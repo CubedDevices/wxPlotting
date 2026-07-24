@@ -25,6 +25,7 @@
 
 #include <list>
 #include "axis.h"
+#include "series.h"
 
 class wxPlotting : public wxControl
 {
@@ -79,6 +80,7 @@ protected:
 private:
 
     std::list<Axis> m_axisList;
+    std::list<Series> m_seriesList;
 
     wxBitmap m_buffer;
     wxBitmap m_plotBuffer;
