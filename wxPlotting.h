@@ -19,9 +19,10 @@
 // wxPlotting
 //
 // Owner-drawn scrolled window that renders into an off-screen wxBitmap via
-// wxMemoryDC at a fixed drawing size (virtual canvas).  Scrollbars appear
-// when the viewport is smaller than the drawing size.  Grow the canvas later
-// (e.g. as series data is added) with SetDrawingSize / SetDrawingHeight.
+// wxMemoryDC.  The canvas tracks the client area as it grows, and never
+// shrinks below a minimum drawing size.  Scrollbars appear only when the
+// client is smaller than that minimum (e.g. after raising the min height as
+// series data is added).
 // ----------------------------------------------------------------------------
 
 #include <list>
@@ -31,8 +32,8 @@
 class wxPlotting : public wxScrolledWindow
 {
 public:
-    // Default virtual canvas size used when none is supplied.
-    static const wxSize DefaultDrawingSize;
+    // Default minimum canvas size used when none is supplied.
+    static const wxSize DefaultMinDrawingSize;
 
     wxPlotting();
     wxPlotting(wxWindow* parent,
@@ -60,13 +61,24 @@ public:
     void SetMargin(int margin);
     int  GetMargin() const;
 
-    // Fixed drawing (virtual canvas) size.  Independent of the window/viewport.
-    // Changing this recreates the MemoryDC buffers and updates scrollbars.
-    void SetDrawingSize(const wxSize& size);
-    wxSize GetDrawingSize() const { return m_drawingSize; }
+    // Minimum drawing size.  Actual canvas is max(client, min) per axis.
+    // Scrollbars appear only when the client is smaller than this minimum.
+    // Raise min height later as series data needs more vertical space.
+    void SetMinDrawingSize(const wxSize& size);
+    wxSize GetMinDrawingSize() const { return m_minDrawingSize; }
 
-    void SetDrawingWidth(int width);
-    void SetDrawingHeight(int height);
+    void SetMinDrawingWidth(int width);
+    void SetMinDrawingHeight(int height);
+    int  GetMinDrawingWidth() const  { return m_minDrawingSize.x; }
+    int  GetMinDrawingHeight() const { return m_minDrawingSize.y; }
+
+    // Aliases: SetDrawing* adjusts the minimum; GetDrawing* returns the
+    // current effective canvas (max of client and minimum).
+    void SetDrawingSize(const wxSize& size) { SetMinDrawingSize(size); }
+    void SetDrawingWidth(int width)         { SetMinDrawingWidth(width); }
+    void SetDrawingHeight(int height)       { SetMinDrawingHeight(height); }
+
+    wxSize GetDrawingSize() const { return m_drawingSize; }
     int  GetDrawingWidth() const  { return m_drawingSize.x; }
     int  GetDrawingHeight() const { return m_drawingSize.y; }
 
@@ -84,10 +96,11 @@ protected:
     void OnSize(wxSizeEvent& event);
     void OnEraseBackground(wxEraseEvent& event);
 
-    // Buffer management
+    // Buffer / layout management
     void RecreateBuffer();
     void Render();
-    void UpdateScrollbars();
+    // Returns true if the effective drawing size changed.
+    bool SyncDrawingSizeToClient();
 
     wxSize DoGetBestClientSize() const override;
 
@@ -99,7 +112,9 @@ private:
     wxBitmap m_plotBuffer;
     int m_margin = 50;
 
-    // Virtual canvas size for the full drawing (including margins).
+    // Floor for the canvas; scrollbars only when client < this.
+    wxSize m_minDrawingSize;
+    // Effective canvas: max(client, min) per axis (includes margins).
     wxSize m_drawingSize;
 
     wxDECLARE_DYNAMIC_CLASS(wxPlotting);

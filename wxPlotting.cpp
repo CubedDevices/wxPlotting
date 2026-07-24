@@ -14,9 +14,10 @@
 // constants
 // ----------------------------------------------------------------------------
 
-// Large enough that scrollbars show in a typical test frame; grow later
-// via SetDrawingHeight as series data is added.
-const wxSize wxPlotting::DefaultDrawingSize(1200, 800);
+// Minimum canvas floor.  The effective canvas grows with the client area
+// above this; scrollbars appear only when the client is smaller.
+// Raise the minimum later (SetMinDrawingHeight) as series data is added.
+const wxSize wxPlotting::DefaultMinDrawingSize(800, 600);
 
 // ----------------------------------------------------------------------------
 // event table / RTTI
@@ -35,7 +36,8 @@ wxEND_EVENT_TABLE()
 // ----------------------------------------------------------------------------
 
 wxPlotting::wxPlotting()
-    : m_drawingSize(DefaultDrawingSize)
+    : m_minDrawingSize(DefaultMinDrawingSize),
+      m_drawingSize(DefaultMinDrawingSize)
 {
 }
 
@@ -45,7 +47,8 @@ wxPlotting::wxPlotting(wxWindow* parent,
                        const wxSize& size,
                        long style,
                        const wxString& name)
-    : m_drawingSize(DefaultDrawingSize)
+    : m_minDrawingSize(DefaultMinDrawingSize),
+      m_drawingSize(DefaultMinDrawingSize)
 {
     Create(parent, id, pos, size, style, name);
 }
@@ -57,8 +60,8 @@ bool wxPlotting::Create(wxWindow* parent,
                         long style,
                         const wxString& name)
 {
-    // wxHSCROLL / wxVSCROLL enable scrollbars when the viewport is smaller
-    // than the fixed drawing (virtual) size.
+    // wxHSCROLL / wxVSCROLL enable scrollbars when the client is smaller
+    // than the minimum drawing size.
     if ( !wxScrolledWindow::Create(parent, id, pos, size,
                                    style | wxFULL_REPAINT_ON_RESIZE |
                                    wxHSCROLL | wxVSCROLL,
@@ -75,7 +78,7 @@ bool wxPlotting::Create(wxWindow* parent,
     SetScrollRate(20, 20);
     EnableScrolling(true, true);
 
-    UpdateScrollbars();
+    SyncDrawingSizeToClient();
     RecreateBuffer();
     Render();
 
@@ -165,29 +168,35 @@ int wxPlotting::GetMargin() const
     return m_margin;
 }
 
-void wxPlotting::SetDrawingSize(const wxSize& size)
+void wxPlotting::SetMinDrawingSize(const wxSize& size)
 {
     if ( size.x < 1 || size.y < 1 )
         return;
 
-    if ( size == m_drawingSize )
+    if ( size == m_minDrawingSize )
         return;
 
-    m_drawingSize = size;
-    UpdateScrollbars();
-    RecreateBuffer();
-    Render();
+    m_minDrawingSize = size;
+
+    // Effective canvas may grow (higher floor) or shrink toward client
+    // (lower floor).  Scrollbars follow virtual vs client size.
+    if ( SyncDrawingSizeToClient() )
+    {
+        RecreateBuffer();
+        Render();
+    }
+
     Refresh(false);
 }
 
-void wxPlotting::SetDrawingWidth(int width)
+void wxPlotting::SetMinDrawingWidth(int width)
 {
-    SetDrawingSize(wxSize(width, m_drawingSize.y));
+    SetMinDrawingSize(wxSize(width, m_minDrawingSize.y));
 }
 
-void wxPlotting::SetDrawingHeight(int height)
+void wxPlotting::SetMinDrawingHeight(int height)
 {
-    SetDrawingSize(wxSize(m_drawingSize.x, height));
+    SetMinDrawingSize(wxSize(m_minDrawingSize.x, height));
 }
 
 
@@ -197,20 +206,32 @@ void wxPlotting::SetDrawingHeight(int height)
 
 wxSize wxPlotting::DoGetBestClientSize() const
 {
-    // Prefer a viewport smaller than the full canvas so scrollbars are used.
-    return wxSize(wxMin(m_drawingSize.x, 800),
-                  wxMin(m_drawingSize.y, 600));
+    // Best size matches the minimum so a snug layout needs no scrollbars.
+    return m_minDrawingSize;
 }
 
 // ----------------------------------------------------------------------------
 // buffer / scroll management
 // ----------------------------------------------------------------------------
 
-void wxPlotting::UpdateScrollbars()
+bool wxPlotting::SyncDrawingSizeToClient()
 {
-    // Virtual size is the fixed drawing canvas; scrollbars appear when the
-    // client (viewport) is smaller than this.
+    // Canvas tracks the client as it grows, but never goes below the minimum.
+    // Scrollbars appear only when client < min on an axis.
+    const wxSize client = GetClientSize();
+    const wxSize needed(wxMax(wxMax(client.x, 1), m_minDrawingSize.x),
+                        wxMax(wxMax(client.y, 1), m_minDrawingSize.y));
+
+    if ( needed == m_drawingSize )
+    {
+        if ( GetVirtualSize() != m_drawingSize )
+            SetVirtualSize(m_drawingSize);
+        return false;
+    }
+
+    m_drawingSize = needed;
     SetVirtualSize(m_drawingSize);
+    return true;
 }
 
 void wxPlotting::RecreateBuffer()
@@ -346,8 +367,13 @@ void wxPlotting::OnPaint(wxPaintEvent& WXUNUSED(event))
 
 void wxPlotting::OnSize(wxSizeEvent& event)
 {
-    // Viewport changed only — drawing size (and buffers) stay fixed.
-    // wxScrolledWindow adjusts scrollbar ranges from virtual vs client size.
+    // Grow/shrink the canvas with the client (down to the minimum only).
+    if ( SyncDrawingSizeToClient() )
+    {
+        RecreateBuffer();
+        Render();
+    }
+
     Refresh(false);
     event.Skip();
 }
