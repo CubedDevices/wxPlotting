@@ -101,6 +101,7 @@ void wxPlotting::CreateDefaultPlot()
     test1.ShowLabel = true;
     test1.Width = 1;
     test1.LabelColor = wxColor("Green");
+    test1.LabelSide = Axis::BelowOrLeft;
     test1.SetPosition(0.0);
     test1.SetRange(0.0, 1.0);
 
@@ -110,6 +111,7 @@ void wxPlotting::CreateDefaultPlot()
     test2.ShowLabel = true;
     test2.Width = 1;
     test2.LabelColor = wxColor("Magenta");
+    test2.LabelSide = Axis::BelowOrLeft;
     test2.SetPosition(0.0);
     test2.SetRange(0.0, 0.20);
 
@@ -119,6 +121,7 @@ void wxPlotting::CreateDefaultPlot()
     test3.ShowLabel = true;
     test3.Width = 1;
     test3.LabelColor = wxColor("Cyan");
+    test3.LabelSide = Axis::AboveOrRight;
     test3.SetPosition(0.0);
     test3.SetRange(0.25, 0.40);
 
@@ -307,15 +310,26 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 
             if (iter->ShowLabel && !iter->Label.IsEmpty())
             {
-                // Center the label under the horizontal axis.
+                // Center the label on the horizontal axis, on the requested side.
                 dc.SetFont(GetFont());
                 dc.SetTextForeground(iter->LabelColor);
 
                 const wxSize textSize = dc.GetTextExtent(iter->Label);
                 const int midX = (startPt.x + endPt.x) / 2;
                 const int labelGap = 4;
+                const int halfWidth = (iter->Width + 1) / 2;
                 const int labelX = midX - textSize.x / 2;
-                const int labelY = startPt.y + (iter->Width + 1) / 2 + labelGap;
+                int labelY;
+                if (iter->LabelSide == Axis::AboveOrRight)
+                {
+                    // Above the axis line.
+                    labelY = startPt.y - halfWidth - labelGap - textSize.y;
+                }
+                else
+                {
+                    // Below the axis line (default).
+                    labelY = startPt.y + halfWidth + labelGap;
+                }
 
                 dc.DrawText(iter->Label, labelX, labelY);
             }
@@ -344,20 +358,32 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 
             if (iter->ShowLabel && !iter->Label.IsEmpty())
             {
-                // Center the label along the vertical axis and rotate 90° CCW
-                // so the text reads bottom-to-top, just left of the axis line.
+                // Center the label along the vertical axis, on the requested
+                // side, rotated so the text runs parallel to the axis.
                 dc.SetFont(GetFont());
                 dc.SetTextForeground(iter->LabelColor);
 
                 const wxSize textSize = dc.GetTextExtent(iter->Label);
                 const int midY = (startPt.y + endPt.y) / 2;
                 const int labelGap = 4;
-                // DrawRotatedText origin is the start of the baseline; at 90°
-                // the string extends upward, so start below the midpoint.
-                const int labelX = startPt.x - (iter->Width + 1) / 2 - labelGap;
-                const int labelY = midY + textSize.x / 2;
+                const int halfWidth = (iter->Width + 1) / 2;
 
-                dc.DrawRotatedText(iter->Label, labelX, labelY, 90.0);
+                if (iter->LabelSide == Axis::AboveOrRight)
+                {
+                    // Right of the axis: rotate -90° so glyphs sit to the
+                    // right of the baseline; string extends downward.
+                    const int labelX = startPt.x + halfWidth + labelGap;
+                    const int labelY = midY - textSize.x / 2;
+                    dc.DrawRotatedText(iter->Label, labelX, labelY, -90.0);
+                }
+                else
+                {
+                    // Left of the axis (default): rotate 90° so glyphs sit to
+                    // the left of the baseline; string extends upward.
+                    const int labelX = startPt.x - halfWidth - labelGap;
+                    const int labelY = midY + textSize.x / 2;
+                    dc.DrawRotatedText(iter->Label, labelX, labelY, 90.0);
+                }
             }
         }
     }

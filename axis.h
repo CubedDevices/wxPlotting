@@ -21,6 +21,15 @@ public:
         Vertical
     };
 
+    // Which side of the axis line receives the label.
+    // Horizontal: BelowOrLeft = below, AboveOrRight = above.
+    // Vertical:   BelowOrLeft = left,  AboveOrRight = right.
+    enum LabelSide
+    {
+        BelowOrLeft = 0,
+        AboveOrRight = 1
+    };
+
 public:
 
     Axis(const wxString& name, AxisType axisType)
@@ -43,6 +52,7 @@ public:
     wxString Label;
     bool     ShowLabel = true;
     wxColor  LabelColor;
+    LabelSide LabelSide = BelowOrLeft;
     double   Scale;
 
 
