@@ -99,31 +99,35 @@ void wxPlotting::CreateDefaultPlot()
     test1.Foreground = (wxColor("Green"));
     test1.Visible = true;
     test1.ShowLabel = true;
-    test1.Width = 1;
+    test1.Width = 2;
     test1.LabelColor = wxColor("Green");
+    test1.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
     test1.LabelSide = Axis::BelowOrLeft;
-    test1.SetPosition(0.0);
-    test1.SetRange(0.0, 1.0);
+    test1.SetLocation(0.0);
+    test1.SetPosition(0.0, 1.0);
+    test1.SetRange(0, 100.0); // 0 to 100 seconds
 
     Axis test2("Signal1", Axis::Vertical);
     test2.Foreground = (wxColor("Magenta"));
     test2.Visible = true;
     test2.ShowLabel = true;
-    test2.Width = 1;
+    test2.Width = 2;
     test2.LabelColor = wxColor("Magenta");
     test2.LabelSide = Axis::BelowOrLeft;
-    test2.SetPosition(0.0);
-    test2.SetRange(0.0, 0.20);
+    test2.SetLocation(0.0);
+    test2.SetPosition(0.0, 0.47);
+    test2.SetRange(-3.3, 3.3);   // += 3.3v
 
     Axis test3("Signal2", Axis::Vertical);
     test3.Foreground = (wxColor("Cyan"));
     test3.Visible = true;
     test3.ShowLabel = true;
-    test3.Width = 1;
+    test3.Width = 2;
     test3.LabelColor = wxColor("Cyan");
-    test3.LabelSide = Axis::AboveOrRight;
-    test3.SetPosition(0.0);
-    test3.SetRange(0.25, 0.40);
+    test3.LabelSide = Axis::BelowOrLeft;
+    test3.SetLocation(0.0);
+    test3.SetPosition(0.53, 1.0);
+    test3.SetRange(-3.3, 3.3);   // += 3.3v
 
     m_axisList.push_back(test1);
     m_axisList.push_back(test2);
@@ -132,11 +136,14 @@ void wxPlotting::CreateDefaultPlot()
     Series series1("Series1", Series::Doubles);
     series1.HorizontalAxis = wxString("Time");
     series1.VerticalAxis = wxString("Signal1");
+    series1.Visible = true;
 
-    for (auto i = 0; i < 100; i++)
+    for (auto i = -3.3; i < 3.3; i += 0.1)
     {
         series1.Data.push_back(wxRealPoint(i, i));
     }
+
+    m_seriesList.push_back(series1);
 
 }
 
@@ -291,15 +298,15 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
         {
             wxPoint startPt, endPt;
 
-            startPt.x = iter->GetRangeStart() * m_plot.GetWidth();
-            startPt.y = m_plot.GetHeight() - (iter->GetPosition() * m_plot.GetHeight());
-            endPt.x = iter->GetRangeEnd() * m_plot.GetWidth();
-            endPt.y = m_plot.GetHeight() - (iter->GetPosition() * m_plot.GetHeight());
+            startPt.x = (iter->GetStart() / 1.0) * m_plot.GetWidth();
+            startPt.y = m_plot.GetHeight() - (iter->GetLocation() * m_plot.GetHeight());
+            endPt.x = (iter->GetEnd() / 1.0) * m_plot.GetWidth();
+            endPt.y = m_plot.GetHeight() - (iter->GetLocation() * m_plot.GetHeight());
 
-            startPt.y += (m_plot.GetHeight() - m_plot.GetBottomLeft().y);
-            startPt.x += m_plot.GetBottomLeft().x;
-            endPt.y += (m_plot.GetHeight() - m_plot.GetBottomLeft().y);
-            endPt.x += m_plot.GetBottomLeft().x;
+            startPt.y += m_plot.y;
+            startPt.x += m_plot.x;
+            endPt.y += m_plot.y;
+            endPt.x += m_plot.x;
 
             wxPen pen;
             pen.SetWidth(iter->Width);
@@ -339,16 +346,15 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
         {
             wxPoint startPt, endPt;
 
-            startPt.y = m_plot.GetHeight() - (iter->GetRangeStart() * m_plot.GetHeight());
-            startPt.x = iter->GetPosition() * m_plot.GetWidth();
-            endPt.y = m_plot.GetHeight() - (iter->GetRangeEnd() * m_plot.GetHeight());
-            endPt.x = iter->GetPosition() * m_plot.GetWidth();
+            startPt.x = iter->GetLocation() * m_plot.GetWidth();
+            startPt.y = m_plot.GetHeight() - (iter->GetStart() / 1.0) * m_plot.GetHeight();
+            endPt.x = iter->GetLocation() * m_plot.GetWidth();
+            endPt.y = m_plot.GetHeight() - (iter->GetEnd() / 1.0) * m_plot.GetHeight();
 
-            startPt.y += (m_plot.GetHeight() - m_plot.GetBottomLeft().y);
-            startPt.x += m_plot.GetBottomLeft().x;
-            endPt.y += (m_plot.GetHeight() - m_plot.GetBottomLeft().y);
-            endPt.x += m_plot.GetBottomLeft().x;
-
+            startPt.y += m_plot.y;
+            startPt.x += m_plot.x;
+            endPt.y += m_plot.y;
+            endPt.x += m_plot.x;
 
             wxPen pen;
             pen.SetWidth(iter->Width);
@@ -395,6 +401,50 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
                 dc.DrawRotatedText(iter->Label, labelX, labelY, 90.0);
             }
         }
+    }
+
+    for (auto iter = m_seriesList.begin();
+        iter != m_seriesList.end();
+        ++iter)
+    {
+        if (!iter->Visible) continue;
+
+        std::list<Axis>::iterator horzAxis;
+        std::list<Axis>::iterator vertAxis;
+        bool foundVertical = false;
+        bool foundHorizontal = false;
+
+        // find horizonal axis
+        for (auto axisiter = m_axisList.begin();
+            axisiter != m_axisList.end();
+            ++axisiter)
+        {
+            if (!iter->HorizontalAxis.CompareTo(axisiter->GetName()))
+            {
+                horzAxis = axisiter;
+                foundHorizontal = true;
+                break;
+            }
+        }
+
+        // find vertical axis
+        for (auto axisiter = m_axisList.begin();
+            axisiter != m_axisList.end();
+            ++axisiter)
+        {
+            if (!iter->VerticalAxis.CompareTo(axisiter->GetName()))
+            {
+                vertAxis = axisiter;
+                foundVertical = true;
+                break;
+            }
+        }
+
+        if (!foundVertical || !foundHorizontal)
+            continue;
+
+
+
     }
 
     /*

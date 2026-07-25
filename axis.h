@@ -44,20 +44,32 @@ public:
         return m_axisType;
     }
 
+    const wxString &GetName() const {
+        return m_name;
+    }
+
     bool     Visible;
 
     int      Width;
     wxColor  Foreground;
-    bool     TickMarks;
+
+    bool     ShowTicks;
     wxColor  TickColor;
+    LabelSide TickSide = BelowOrLeft;
+    
     wxString Label;
     bool     ShowLabel = true;
     wxColor  LabelColor;
     LabelSide LabelSide = BelowOrLeft;
-    // Fixed-pitch 10pt by default so axis labels stay readable.
-    wxFont   LabelFont = wxFont(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
+    wxFont   LabelFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
+
     double   Scale;
 
+    void SetPosition(double start, double end)
+    {
+        m_start = start;
+        m_end = end;
+    }
 
     double  GetStart() const {
         return m_start;
@@ -81,12 +93,12 @@ public:
         return m_rangeEnd;
     }
 
-    void SetPosition(double pos) {
-        m_pos = pos;
+    void SetLocation(double pos) {
+        m_location = pos;
     }
 
-    double GetPosition() const {
-        return m_pos;
+    double GetLocation() const {
+        return m_location;
     }
 
 protected:
@@ -98,7 +110,7 @@ protected:
 
     double m_start = 0.0;
     double m_end = 1.0;
-    double m_pos = 0;
+    double m_location = 0;
 
     double m_rangeStart = 0;
     double m_rangeEnd = 100.0;
