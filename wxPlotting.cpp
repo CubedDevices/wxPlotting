@@ -115,8 +115,10 @@ void wxPlotting::CreateDefaultPlot()
 
     Axis test3("Signal2", Axis::Vertical);
     test3.Foreground = (wxColor("Cyan"));
-    test3.Visible = (true);
+    test3.Visible = true;
+    test3.ShowLabel = true;
     test3.Width = 1;
+    test3.LabelColor = wxColor("Cyan");
     test3.SetPosition(0.0);
     test3.SetRange(0.25, 0.40);
 
@@ -303,9 +305,19 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 
             dc.DrawLine(startPt, endPt);
 
-            if (iter->ShowLabel)
+            if (iter->ShowLabel && !iter->Label.IsEmpty())
             {
+                // Center the label under the horizontal axis.
+                dc.SetFont(GetFont());
+                dc.SetTextForeground(iter->LabelColor);
 
+                const wxSize textSize = dc.GetTextExtent(iter->Label);
+                const int midX = (startPt.x + endPt.x) / 2;
+                const int labelGap = 4;
+                const int labelX = midX - textSize.x / 2;
+                const int labelY = startPt.y + (iter->Width + 1) / 2 + labelGap;
+
+                dc.DrawText(iter->Label, labelX, labelY);
             }
         }
         else if (iter->GetAxisType() == Axis::Vertical)
@@ -330,9 +342,22 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 
             dc.DrawLine(startPt, endPt);
 
-            if (iter->ShowLabel)
+            if (iter->ShowLabel && !iter->Label.IsEmpty())
             {
+                // Center the label along the vertical axis and rotate 90° CCW
+                // so the text reads bottom-to-top, just left of the axis line.
+                dc.SetFont(GetFont());
+                dc.SetTextForeground(iter->LabelColor);
 
+                const wxSize textSize = dc.GetTextExtent(iter->Label);
+                const int midY = (startPt.y + endPt.y) / 2;
+                const int labelGap = 4;
+                // DrawRotatedText origin is the start of the baseline; at 90°
+                // the string extends upward, so start below the midpoint.
+                const int labelX = startPt.x - (iter->Width + 1) / 2 - labelGap;
+                const int labelY = midY + textSize.x / 2;
+
+                dc.DrawRotatedText(iter->Label, labelX, labelY, 90.0);
             }
         }
     }
