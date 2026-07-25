@@ -53,15 +53,19 @@ public:
     int      Width;
     wxColor  Foreground;
 
-    bool     ShowTicks;
+    bool     TickVisible;
     wxColor  TickColor;
     LabelSide TickSide = BelowOrLeft;
+    double   TickRange;
     
     wxString Label;
-    bool     ShowLabel = true;
+    bool     LabelVisible = true;
     wxColor  LabelColor;
     LabelSide LabelSide = BelowOrLeft;
     wxFont   LabelFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
+
+    bool     GridVisible = true;
+    wxColor  GridColor;
 
     double   Scale;
 

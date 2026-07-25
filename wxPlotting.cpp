@@ -98,7 +98,7 @@ void wxPlotting::CreateDefaultPlot()
     Axis test1("Time", Axis::Horizontal);
     test1.Foreground = (wxColor("Green"));
     test1.Visible = true;
-    test1.ShowLabel = true;
+    test1.LabelVisible = true;
     test1.Width = 2;
     test1.LabelColor = wxColor("Green");
     test1.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
@@ -106,28 +106,40 @@ void wxPlotting::CreateDefaultPlot()
     test1.SetLocation(0.0);
     test1.SetPosition(0.0, 1.0);
     test1.SetRange(0, 100.0); // 0 to 100 seconds
+    test1.TickRange = 10.0; // tick every 10 seconds
+    test1.TickColor = wxColor("Green");
+    test1.TickVisible = true;
+    test1.TickSide = Axis::BelowOrLeft;
 
     Axis test2("Signal1", Axis::Vertical);
     test2.Foreground = (wxColor("Magenta"));
     test2.Visible = true;
-    test2.ShowLabel = true;
+    test2.LabelVisible = true;
     test2.Width = 2;
     test2.LabelColor = wxColor("Magenta");
     test2.LabelSide = Axis::BelowOrLeft;
     test2.SetLocation(0.0);
     test2.SetPosition(0.0, 0.47);
     test2.SetRange(-3.3, 3.3);   // += 3.3v
+    test2.TickRange = 1.0;      // 1v ticks
+    test2.TickColor = (wxColor("Magenta"));
+    test2.TickVisible = true;
+    test2.TickSide = Axis::BelowOrLeft;
 
     Axis test3("Signal2", Axis::Vertical);
     test3.Foreground = (wxColor("Cyan"));
     test3.Visible = true;
-    test3.ShowLabel = true;
+    test3.LabelVisible = true;
     test3.Width = 2;
     test3.LabelColor = wxColor("Cyan");
     test3.LabelSide = Axis::BelowOrLeft;
     test3.SetLocation(0.0);
     test3.SetPosition(0.53, 1.0);
     test3.SetRange(-3.3, 3.3);   // += 3.3v
+    test3.TickRange = 1.0; // 1v ticks
+    test3.TickColor = (wxColor("Cyan"));
+    test3.TickVisible = true;
+    test3.TickSide = Axis::BelowOrLeft;
 
     m_axisList.push_back(test1);
     m_axisList.push_back(test2);
@@ -315,7 +327,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 
             dc.DrawLine(startPt, endPt);
 
-            if (iter->ShowLabel && !iter->Label.IsEmpty())
+            if (iter->LabelVisible && !iter->Label.IsEmpty())
             {
                 // Center the label on the horizontal axis, on the requested side.
                 // DrawText origin is the top-left of the text box.
@@ -363,7 +375,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 
             dc.DrawLine(startPt, endPt);
 
-            if (iter->ShowLabel && !iter->Label.IsEmpty())
+            if (iter->LabelVisible && !iter->Label.IsEmpty())
             {
                 // Center the label along the vertical axis, on the requested
                 // side, rotated 90° CCW so text reads bottom-to-top.
