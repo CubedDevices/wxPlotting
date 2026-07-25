@@ -5,6 +5,7 @@
 
 #ifndef WX_PRECOMP
 #include "wx/string.h"
+#include "wx/font.h"
 #endif
 
 
@@ -53,6 +54,8 @@ public:
     bool     ShowLabel = true;
     wxColor  LabelColor;
     LabelSide LabelSide = BelowOrLeft;
+    // Fixed-pitch 10pt by default so axis labels stay readable.
+    wxFont   LabelFont = wxFont(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
     double   Scale;
 
 

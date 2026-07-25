@@ -311,24 +311,25 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
             if (iter->ShowLabel && !iter->Label.IsEmpty())
             {
                 // Center the label on the horizontal axis, on the requested side.
-                dc.SetFont(GetFont());
+                // DrawText origin is the top-left of the text box.
+                dc.SetFont(iter->LabelFont);
                 dc.SetTextForeground(iter->LabelColor);
 
                 const wxSize textSize = dc.GetTextExtent(iter->Label);
                 const int midX = (startPt.x + endPt.x) / 2;
-                const int labelGap = 4;
-                const int halfWidth = (iter->Width + 1) / 2;
+                // Clear half the pen plus padding so glyphs do not sit on the line.
+                const int clear = (iter->Width + 1) / 2 + 4;
                 const int labelX = midX - textSize.x / 2;
                 int labelY;
                 if (iter->LabelSide == Axis::AboveOrRight)
                 {
-                    // Above the axis line.
-                    labelY = startPt.y - halfWidth - labelGap - textSize.y;
+                    // Above the axis: bottom of text is `clear` above the line.
+                    labelY = startPt.y - clear - textSize.y;
                 }
                 else
                 {
-                    // Below the axis line (default).
-                    labelY = startPt.y + halfWidth + labelGap;
+                    // Below the axis: top of text is `clear` below the line.
+                    labelY = startPt.y + clear;
                 }
 
                 dc.DrawText(iter->Label, labelX, labelY);
@@ -359,31 +360,39 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
             if (iter->ShowLabel && !iter->Label.IsEmpty())
             {
                 // Center the label along the vertical axis, on the requested
-                // side, rotated so the text runs parallel to the axis.
-                dc.SetFont(GetFont());
+                // side, rotated 90° CCW so text reads bottom-to-top.
+                //
+                // On MSW, DrawRotatedText uses GDI escapement; for angle 90°
+                // the string occupies (see wxMSWDCImpl::DoDrawRotatedText):
+                //   x in [ox, ox + h],  y in [oy - w, oy]
+                // where (w, h) is the unrotated text extent.  The origin is
+                // therefore the bottom-left of the upright bounding box of the
+                // rotated glyphs — not the side nearer the axis.
+                dc.SetFont(iter->LabelFont);
                 dc.SetTextForeground(iter->LabelColor);
 
                 const wxSize textSize = dc.GetTextExtent(iter->Label);
                 const int midY = (startPt.y + endPt.y) / 2;
-                const int labelGap = 4;
-                const int halfWidth = (iter->Width + 1) / 2;
+                const int clear = (iter->Width + 1) / 2 + 4;
+                const int w = textSize.x; // length along the axis after rotation
+                const int h = textSize.y; // thickness perpendicular to the axis
 
+                // Origin y so the vertical span [oy - w, oy] is centered on midY.
+                const int labelY = midY + w / 2;
+
+                int labelX;
                 if (iter->LabelSide == Axis::AboveOrRight)
                 {
-                    // Right of the axis: rotate -90° so glyphs sit to the
-                    // right of the baseline; string extends downward.
-                    const int labelX = startPt.x + halfWidth + labelGap;
-                    const int labelY = midY - textSize.x / 2;
-                    dc.DrawRotatedText(iter->Label, labelX, labelY, -90.0);
+                    // Right of the axis: left edge of text (ox) at axisX + clear.
+                    labelX = startPt.x + clear;
                 }
                 else
                 {
-                    // Left of the axis (default): rotate 90° so glyphs sit to
-                    // the left of the baseline; string extends upward.
-                    const int labelX = startPt.x - halfWidth - labelGap;
-                    const int labelY = midY + textSize.x / 2;
-                    dc.DrawRotatedText(iter->Label, labelX, labelY, 90.0);
+                    // Left of the axis: right edge of text (ox + h) at axisX - clear.
+                    labelX = startPt.x - clear - h;
                 }
+
+                dc.DrawRotatedText(iter->Label, labelX, labelY, 90.0);
             }
         }
     }
