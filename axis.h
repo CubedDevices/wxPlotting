@@ -27,6 +27,7 @@ public:
     {
         m_name = name;
         m_axisType = axisType;
+        Label = name;
     }
 
     AxisType GetAxisType() const {
@@ -39,7 +40,8 @@ public:
     wxColor  Foreground;
     bool     TickMarks;
     wxColor  TickColor;
-    bool     Labels;
+    wxString Label;
+    bool     ShowLabel = true;
     wxColor  LabelColor;
     double   Scale;
 

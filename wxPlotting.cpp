@@ -17,7 +17,7 @@
 // Minimum canvas floor.  The effective canvas grows with the client area
 // above this; scrollbars appear only when the client is smaller.
 // Raise the minimum later (SetMinDrawingHeight) as series data is added.
-const wxSize wxPlotting::DefaultMinDrawingSize(200, 200);
+const wxSize wxPlotting::DefaultMinDrawingSize(400, 200);
 
 // ----------------------------------------------------------------------------
 // event table / RTTI
@@ -95,53 +95,43 @@ wxPlotting::~wxPlotting()
 
 void wxPlotting::CreateDefaultPlot()
 {
-    Axis horz("hor", Axis::Horizontal);
-    Axis vert("vert", Axis::Vertical);
-
-    horz.Foreground = wxColor("Green");
-    vert.Foreground = wxColor("Green");
-    horz.Visible = false;
-    vert.Visible = false;
-    horz.Width = 5;
-    vert.Width = 5;
-
-    Axis test1("test1", Axis::Horizontal);
+    Axis test1("Time", Axis::Horizontal);
     test1.Foreground = (wxColor("Green"));
-    test1.Visible = (true);
-    test1.Width = (2);
+    test1.Visible = true;
+    test1.ShowLabel = true;
+    test1.Width = 1;
+    test1.LabelColor = wxColor("Green");
     test1.SetPosition(0.05);
     test1.SetRange(0.05, 0.95);
 
-    Axis test2("test2", Axis::Vertical);
+    Axis test2("Signal1", Axis::Vertical);
     test2.Foreground = (wxColor("Magenta"));
-    test2.Visible =(true);
-    test2.Width = (2);
+    test2.Visible = true;
+    test2.ShowLabel = true;
+    test2.Width = 1;
+    test2.LabelColor = wxColor("Magenta");
     test2.SetPosition(0.05);
     test2.SetRange(0.05, 0.20);
 
-    Axis test3("test3", Axis::Vertical);
+    Axis test3("Signal2", Axis::Vertical);
     test3.Foreground = (wxColor("Cyan"));
     test3.Visible = (true);
-    test3.Width = (2);
+    test3.Width = 1;
     test3.SetPosition(0.05);
     test3.SetRange(0.25, 0.40);
 
-    m_axisList.push_back(horz);
-    m_axisList.push_back(vert);
     m_axisList.push_back(test1);
     m_axisList.push_back(test2);
     m_axisList.push_back(test3);
 
     Series series1("Series1", Series::Doubles);
-    series1.HorizontalAxis = wxString("test1");
-    series1.VerticalAxis = wxString("test2");
+    series1.HorizontalAxis = wxString("Time");
+    series1.VerticalAxis = wxString("Signal1");
 
     for (auto i = 0; i < 100; i++)
     {
         series1.Data.push_back(wxRealPoint(i, i));
     }
-
-    //SetMinDrawingSize(wxSize(800, 600));
 
 }
 
@@ -288,12 +278,11 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
     dc.DrawLine(wxPoint(0, size.GetHeight() - 1), wxPoint(0, 0));
 
 
-
     for (auto iter = m_axisList.begin();
         iter != m_axisList.end();
         ++iter)
     {
-        if (iter->Visible == false) continue;
+        if (!iter->Visible) continue;
 
         if (iter->GetAxisType() == Axis::Horizontal)
         {
@@ -310,6 +299,11 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
             dc.SetPen(pen);
 
             dc.DrawLine(startPt, endPt);
+
+            if (iter->ShowLabel)
+            {
+
+            }
         }
         else if (iter->GetAxisType() == Axis::Vertical)
         {
@@ -326,6 +320,11 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
             dc.SetPen(pen);
 
             dc.DrawLine(startPt, endPt);
+
+            if (iter->ShowLabel)
+            {
+
+            }
         }
     }
 
