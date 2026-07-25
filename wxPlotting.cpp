@@ -101,8 +101,8 @@ void wxPlotting::CreateDefaultPlot()
     test1.ShowLabel = true;
     test1.Width = 1;
     test1.LabelColor = wxColor("Green");
-    test1.SetPosition(0.05);
-    test1.SetRange(0.05, 0.95);
+    test1.SetPosition(0.0);
+    test1.SetRange(0.0, 1.0);
 
     Axis test2("Signal1", Axis::Vertical);
     test2.Foreground = (wxColor("Magenta"));
@@ -110,14 +110,14 @@ void wxPlotting::CreateDefaultPlot()
     test2.ShowLabel = true;
     test2.Width = 1;
     test2.LabelColor = wxColor("Magenta");
-    test2.SetPosition(0.05);
-    test2.SetRange(0.05, 0.20);
+    test2.SetPosition(0.0);
+    test2.SetRange(0.0, 0.20);
 
     Axis test3("Signal2", Axis::Vertical);
     test3.Foreground = (wxColor("Cyan"));
     test3.Visible = (true);
     test3.Width = 1;
-    test3.SetPosition(0.05);
+    test3.SetPosition(0.0);
     test3.SetRange(0.25, 0.40);
 
     m_axisList.push_back(test1);
@@ -233,9 +233,10 @@ void wxPlotting::RecreateBuffer()
 
     if ( !m_buffer.IsOk() || m_buffer.GetSize() != size )
     {
-        const wxSize plotSize(size.x - (2 * m_margin),
+        m_plotSize = wxSize(size.x - (2 * m_margin),
                               size.y - (2 * m_margin));
-        m_plotBuffer = wxBitmap(plotSize);
+        m_plot = wxRect(wxPoint(m_margin, m_margin), m_plotSize);
+
         m_buffer = wxBitmap(size);
     }
 }
@@ -243,20 +244,16 @@ void wxPlotting::RecreateBuffer()
 void wxPlotting::Render()
 {
     RecreateBuffer();
-    if ( !m_buffer.IsOk() || !m_plotBuffer.IsOk() )
+    if ( !m_buffer.IsOk())
         return;
 
     wxMemoryDC memDC;
-    memDC.SelectObject(m_plotBuffer);
-    DrawPlot(memDC, m_plotBuffer.GetSize());
 
-
-    memDC.SelectObject(m_buffer);
     memDC.SetBackground(wxBrush(GetBackgroundColour()));
     memDC.Clear();
 
-    memDC.DrawBitmap(m_plotBuffer, m_margin, m_margin, false);
-
+    memDC.SelectObject(m_buffer);
+    DrawPlot(memDC, m_buffer.GetSize());
     memDC.SelectObject(wxNullBitmap);
 }
 
@@ -272,10 +269,11 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 
     wxPen penBorder(wxColor("White"));
     dc.SetPen(penBorder);
-    dc.DrawLine(wxPoint(0, 0), wxPoint(size.GetWidth() - 1, 0));
-    dc.DrawLine(wxPoint(size.GetWidth()-1, 0), wxPoint(size.GetWidth() - 1, size.GetHeight() - 1));
-    dc.DrawLine(wxPoint(size.GetWidth() - 1, size.GetHeight() - 1), wxPoint(0, size.GetHeight() - 1));
-    dc.DrawLine(wxPoint(0, size.GetHeight() - 1), wxPoint(0, 0));
+    
+    dc.DrawLine(m_plot.GetBottomLeft(), m_plot.GetBottomRight());
+    dc.DrawLine(m_plot.GetBottomRight(), m_plot.GetTopRight());
+    dc.DrawLine(m_plot.GetTopRight(), m_plot.GetTopLeft());
+    dc.DrawLine(m_plot.GetTopLeft(), m_plot.GetBottomLeft());
 
 
     for (auto iter = m_axisList.begin();
@@ -288,10 +286,15 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
         {
             wxPoint startPt, endPt;
 
-            startPt.x = iter->GetRangeStart() * size.GetWidth();
-            startPt.y = size.GetHeight() - (iter->GetPosition() * size.GetHeight());
-            endPt.x = iter->GetRangeEnd() * size.GetWidth();
-            endPt.y = size.GetHeight() - (iter->GetPosition() * size.GetHeight());
+            startPt.x = iter->GetRangeStart() * m_plot.GetWidth();
+            startPt.y = m_plot.GetHeight() - (iter->GetPosition() * m_plot.GetHeight());
+            endPt.x = iter->GetRangeEnd() * m_plot.GetWidth();
+            endPt.y = m_plot.GetHeight() - (iter->GetPosition() * m_plot.GetHeight());
+
+            startPt.y += (m_plot.GetHeight() - m_plot.GetBottomLeft().y);
+            startPt.x += m_plot.GetBottomLeft().x;
+            endPt.y += (m_plot.GetHeight() - m_plot.GetBottomLeft().y);
+            endPt.x += m_plot.GetBottomLeft().x;
 
             wxPen pen;
             pen.SetWidth(iter->Width);
@@ -309,10 +312,16 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
         {
             wxPoint startPt, endPt;
 
-            startPt.y = size.GetHeight() - (iter->GetRangeStart() * size.GetHeight());
-            startPt.x = iter->GetPosition() * size.GetWidth();
-            endPt.y = size.GetHeight() - (iter->GetRangeEnd() * size.GetHeight());
-            endPt.x = iter->GetPosition() * size.GetWidth();
+            startPt.y = m_plot.GetHeight() - (iter->GetRangeStart() * m_plot.GetHeight());
+            startPt.x = iter->GetPosition() * m_plot.GetWidth();
+            endPt.y = m_plot.GetHeight() - (iter->GetRangeEnd() * m_plot.GetHeight());
+            endPt.x = iter->GetPosition() * m_plot.GetWidth();
+
+            startPt.y += (m_plot.GetHeight() - m_plot.GetBottomLeft().y);
+            startPt.x += m_plot.GetBottomLeft().x;
+            endPt.y += (m_plot.GetHeight() - m_plot.GetBottomLeft().y);
+            endPt.x += m_plot.GetBottomLeft().x;
+
 
             wxPen pen;
             pen.SetWidth(iter->Width);

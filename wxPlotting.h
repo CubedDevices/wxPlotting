@@ -109,7 +109,8 @@ private:
     std::list<Series> m_seriesList;
 
     wxBitmap m_buffer;
-    wxBitmap m_plotBuffer;
+    wxSize   m_plotSize;
+    wxRect   m_plot;
     int m_margin = 50;
 
     // Floor for the canvas; scrollbars only when client < this.
