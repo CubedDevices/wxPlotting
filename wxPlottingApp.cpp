@@ -89,6 +89,7 @@ wxPlottingFrame::wxPlottingFrame()
     a1.Foreground = (wxColor("Magenta"));
     a1.Visible = true;
     a1.LabelVisible = true;
+    a1.LabelRotated = true;
     a1.Width = 3;
     a1.LabelColor = wxColor("Magenta");
     a1.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
@@ -112,6 +113,7 @@ wxPlottingFrame::wxPlottingFrame()
     a2.Foreground = (wxColor("Cyan"));
     a2.Visible = true;
     a2.LabelVisible = true;
+    a2.LabelRotated = true;
     a2.Width = 3;
     a2.LabelColor = wxColor("Cyan");
     a2.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());

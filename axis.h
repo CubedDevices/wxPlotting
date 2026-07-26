@@ -88,7 +88,7 @@ public:
           LabelColor(*wxWHITE),
           LabelSide(BelowOrLeft),
           LabelFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN)),
-          LabelRotated(true),
+          LabelRotated(false),
           GridVisible(false),
           GridColor(wxColour(80, 80, 80)),
           GridStyle(wxPENSTYLE_SOLID),
