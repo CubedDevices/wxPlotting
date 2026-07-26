@@ -1,0 +1,321 @@
+#ifndef SERIES_H
+#define SERIES_H
+
+#include "wx/wxprec.h"
+
+#ifndef WX_PRECOMP
+#include "wx/string.h"
+#include "wx/colour.h"
+#include "wx/gdicmn.h"  // wxRealPoint
+#endif
+
+#include <mutex>
+#include <utility>
+#include <vector>
+
+/**
+ * @file series.h
+ * @brief Thread-safe data series used by @ref wxPlotting.
+ */
+
+/**
+ * @class Series
+ * @brief Named polyline of samples bound to a horizontal and vertical axis.
+ *
+ * @details
+ * **Point data is mutex-protected** so a worker thread can append or replace
+ * samples while the UI thread snapshots them for rendering.
+ *
+ * Prefer:
+ * - @ref AppendPoint / @ref AppendPoints / @ref SetPoints for updates
+ * - @ref GetPoints for a safe copy (used by the plot when drawing)
+ * - @ref WithPoints for short locked batch edits
+ *
+ * After mutating points off the UI thread, schedule a redraw on the main
+ * thread, e.g. @c plot->CallAfter([plot]{ plot->UpdatePlot(); }).
+ *
+ * @note @ref Visible, @ref Foreground, and axis name fields are not locked;
+ *       change them on the UI thread.
+ *
+ * **Binding**
+ * Set @ref HorizontalAxis and @ref VerticalAxis to the @ref Axis::GetName
+ * values of axes already added to the plot. Unknown names cause the series
+ * to be skipped at draw time.
+ */
+class Series
+{
+public:
+    /**
+     * @brief Contiguous sample storage (efficient for lock-and-copy draws).
+     * @details Each point is typically @c (x_data, y_data) in the units of
+     *          the bound horizontal and vertical axes.
+     */
+    typedef std::vector<wxRealPoint> Points;
+
+    /**
+     * @enum SeriesType
+     * @brief Semantic type of the series (extensibility; drawing uses doubles).
+     */
+    enum SeriesType
+    {
+        None,     ///< Unspecified.
+        Doubles,  ///< Numeric X/Y (default drawing path).
+        Date,     ///< Reserved for date X values.
+        Time      ///< Reserved for time X values.
+    };
+
+public:
+    /**
+     * @brief Construct a series with a unique name and type.
+     * @param name Unique name among all series on a plot.
+     * @param seriesType Semantic type (usually @ref Doubles).
+     * @details Defaults: @ref Visible = true, @ref Foreground = white.
+     */
+    Series(const wxString& name, SeriesType seriesType)
+        : Visible(true),
+          Foreground(*wxWHITE),
+          m_name(name),
+          m_seriesType(seriesType)
+    {
+    }
+
+    /**
+     * @brief Copy constructor.
+     * @details Copies metadata and point data under the source lock.
+     *          Each instance owns an independent mutex.
+     */
+    Series(const Series& other)
+        : Visible(other.Visible),
+          Foreground(other.Foreground),
+          HorizontalAxis(other.HorizontalAxis),
+          VerticalAxis(other.VerticalAxis),
+          m_name(other.m_name),
+          m_seriesType(other.m_seriesType)
+    {
+        std::lock_guard<std::mutex> lock(other.m_mutex);
+        m_data = other.m_data;
+    }
+
+    /**
+     * @brief Copy assignment.
+     * @return *this
+     */
+    Series& operator=(const Series& other)
+    {
+        if ( this == &other )
+            return *this;
+
+        const bool visible = other.Visible;
+        const wxColor foreground = other.Foreground;
+        const wxString horz = other.HorizontalAxis;
+        const wxString vert = other.VerticalAxis;
+        const wxString name = other.m_name;
+        const SeriesType type = other.m_seriesType;
+
+        Points dataCopy;
+        {
+            std::lock_guard<std::mutex> lock(other.m_mutex);
+            dataCopy = other.m_data;
+        }
+
+        Visible = visible;
+        Foreground = foreground;
+        HorizontalAxis = horz;
+        VerticalAxis = vert;
+        m_name = name;
+        m_seriesType = type;
+
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_data = std::move(dataCopy);
+        }
+        return *this;
+    }
+
+    /**
+     * @brief Move constructor.
+     * @details Moves metadata and point data; each instance keeps its own mutex.
+     */
+    Series(Series&& other) noexcept
+        : Visible(other.Visible),
+          Foreground(std::move(other.Foreground)),
+          HorizontalAxis(std::move(other.HorizontalAxis)),
+          VerticalAxis(std::move(other.VerticalAxis)),
+          m_name(std::move(other.m_name)),
+          m_seriesType(other.m_seriesType)
+    {
+        std::lock_guard<std::mutex> lock(other.m_mutex);
+        m_data = std::move(other.m_data);
+    }
+
+    /**
+     * @brief Move assignment.
+     * @return *this
+     */
+    Series& operator=(Series&& other) noexcept
+    {
+        if ( this == &other )
+            return *this;
+
+        Visible = other.Visible;
+        Foreground = std::move(other.Foreground);
+        HorizontalAxis = std::move(other.HorizontalAxis);
+        VerticalAxis = std::move(other.VerticalAxis);
+        m_name = std::move(other.m_name);
+        m_seriesType = other.m_seriesType;
+
+        Points dataMove;
+        {
+            std::lock_guard<std::mutex> lock(other.m_mutex);
+            dataMove = std::move(other.m_data);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_data = std::move(dataMove);
+        }
+        return *this;
+    }
+
+    /**
+     * @brief Get the semantic series type.
+     */
+    SeriesType GetSeriesType() const {
+        return m_seriesType;
+    }
+
+    /**
+     * @brief Get the unique series name.
+     * @return Name used by @ref wxPlotting::GetSeries.
+     */
+    const wxString& GetName() const {
+        return m_name;
+    }
+
+    // --- Thread-safe point access ------------------------------------------
+
+    /**
+     * @brief Replace all samples (moves when possible).
+     * @param points New sample vector; emptied after the call if moved from.
+     * @note Thread-safe. Call @ref wxPlotting::UpdatePlot on the UI thread after.
+     */
+    void SetPoints(Points points)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_data = std::move(points);
+    }
+
+    /**
+     * @brief Remove all samples.
+     * @note Thread-safe.
+     */
+    void ClearPoints()
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_data.clear();
+    }
+
+    /**
+     * @brief Append one sample.
+     * @param pt Point in data coordinates (@c x = horizontal axis, @c y = vertical).
+     * @note Thread-safe.
+     */
+    void AppendPoint(const wxRealPoint& pt)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_data.push_back(pt);
+    }
+
+    /**
+     * @brief Append multiple samples.
+     * @param points Samples to append in order.
+     * @note Thread-safe.
+     */
+    void AppendPoints(const Points& points)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_data.insert(m_data.end(), points.begin(), points.end());
+    }
+
+    /**
+     * @brief Return a snapshot copy of all samples.
+     * @return Copy of the point buffer (safe to use without holding the lock).
+     * @details Used by the plot when drawing so GDI work is not done under the mutex.
+     * @note Thread-safe. Cost is O(n) in the number of points.
+     */
+    Points GetPoints() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_data;
+    }
+
+    /**
+     * @brief Return the current sample count.
+     * @note Thread-safe.
+     */
+    size_t GetPointCount() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_data.size();
+    }
+
+    /**
+     * @brief Invoke a functor while holding the data lock (mutable).
+     * @tparam Fn Callable accepting @c Points&.
+     * @param fn Work to perform; keep it short so render/update is not blocked.
+     * @return Whatever @a fn returns.
+     * @warning Do not call @ref wxPlotting::UpdatePlot or nested long UI work
+     *          from @a fn while holding the lock.
+     */
+    template <typename Fn>
+    auto WithPoints(Fn&& fn) -> decltype(fn(std::declval<Points&>()))
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return fn(m_data);
+    }
+
+    /**
+     * @brief Invoke a functor while holding the data lock (const).
+     * @tparam Fn Callable accepting @c const Points&.
+     * @param fn Work to perform; keep it short.
+     * @return Whatever @a fn returns.
+     */
+    template <typename Fn>
+    auto WithPoints(Fn&& fn) const -> decltype(fn(std::declval<const Points&>()))
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return fn(m_data);
+    }
+
+    /**
+     * @brief When @c false, the series is not drawn.
+     * @note Not mutex-protected; set on the UI thread.
+     */
+    bool     Visible;
+
+    /**
+     * @brief Stroke colour for the series polyline.
+     * @note Not mutex-protected; set on the UI thread.
+     */
+    wxColor  Foreground;
+
+    /**
+     * @brief Name of the horizontal @ref Axis this series uses for X mapping.
+     * @note Must match @ref Axis::GetName of an axis on the same plot.
+     */
+    wxString HorizontalAxis;
+
+    /**
+     * @brief Name of the vertical @ref Axis this series uses for Y mapping.
+     * @note Must match @ref Axis::GetName of an axis on the same plot.
+     */
+    wxString VerticalAxis;
+
+private:
+    wxString m_name;           ///< Unique series identity.
+    SeriesType m_seriesType;   ///< Semantic type.
+
+    Points m_data;             ///< Sample buffer (guarded by @ref m_mutex).
+    mutable std::mutex m_mutex;///< Protects @ref m_data only.
+};
+
+#endif
