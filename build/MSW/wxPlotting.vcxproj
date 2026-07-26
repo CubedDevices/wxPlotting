@@ -167,6 +167,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\axis.h" />
+    <ClInclude Include="..\..\plothit.h" />
+    <ClInclude Include="..\..\plotcoords.h" />
     <ClInclude Include="..\..\series.h" />
     <ClInclude Include="..\..\seriesrenderer.h" />
     <ClInclude Include="..\..\wxPlotting.h" />

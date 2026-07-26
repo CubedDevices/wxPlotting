@@ -11,6 +11,13 @@
 #include "wx/menu.h"
 #include "wx/msgdlg.h"
 #include "wx/statusbr.h"
+#include "wx/colordlg.h"
+#include "wx/fontdlg.h"
+#include "wx/numdlg.h"
+#include "wx/textdlg.h"
+#include "wx/choicdlg.h"
+
+#include <cmath>
 
 // ----------------------------------------------------------------------------
 // application
@@ -35,6 +42,18 @@ bool wxPlottingApp::OnInit()
 wxBEGIN_EVENT_TABLE(wxPlottingFrame, wxFrame)
     EVT_MENU(wxID_EXIT,  wxPlottingFrame::OnExit)
     EVT_MENU(wxID_ABOUT, wxPlottingFrame::OnAbout)
+
+    // Axis Analog1 property menu (range of IDs)
+    EVT_MENU_RANGE(ID_AXIS_VISIBLE, ID_AXIS_GRID_STYLE_TRANSPARENT,
+                   wxPlottingFrame::OnAxisMenu)
+    EVT_UPDATE_UI_RANGE(ID_AXIS_VISIBLE, ID_AXIS_GRID_STYLE_TRANSPARENT,
+                        wxPlottingFrame::OnAxisUpdateUI)
+
+    // Series Series1 property menu
+    EVT_MENU_RANGE(ID_SERIES_VISIBLE, ID_SERIES_VERT_AXIS,
+                   wxPlottingFrame::OnSeriesMenu)
+    EVT_UPDATE_UI_RANGE(ID_SERIES_VISIBLE, ID_SERIES_VERT_AXIS,
+                        wxPlottingFrame::OnSeriesUpdateUI)
 wxEND_EVENT_TABLE()
 
 wxPlottingFrame::wxPlottingFrame()
@@ -51,6 +70,7 @@ wxPlottingFrame::wxPlottingFrame()
 
     wxMenuBar* menuBar = new wxMenuBar;
     menuBar->Append(fileMenu, "&File");
+    BuildPropertyMenus(menuBar);
     menuBar->Append(helpMenu, "&Help");
     SetMenuBar(menuBar);
 
@@ -492,6 +512,15 @@ wxPlottingFrame::wxPlottingFrame()
 
     m_plot->UpdatePlot();
 
+    // Interaction demo: hit-test hover + vertical axis band drag.
+    m_plot->Bind(wxEVT_MOTION, &wxPlottingFrame::OnPlotMotion, this);
+    m_plot->Bind(wxEVT_LEFT_DOWN, &wxPlottingFrame::OnPlotLeftDown, this);
+    m_plot->Bind(wxEVT_LEFT_UP, &wxPlottingFrame::OnPlotLeftUp, this);
+    m_plot->Bind(wxEVT_MOUSE_CAPTURE_LOST, &wxPlottingFrame::OnPlotCaptureLost, this);
+    m_plot->Bind(wxEVT_SET_CURSOR, &wxPlottingFrame::OnPlotSetCursor, this);
+    m_plot->Bind(wxEVT_LEAVE_WINDOW, &wxPlottingFrame::OnPlotLeaveWindow, this);
+    m_plot->Bind(wxEVT_MOUSEWHEEL, &wxPlottingFrame::OnPlotMouseWheel, this);
+
     wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
     sizer->Add(m_plot, 1, wxEXPAND | wxALL, 0);
     SetSizer(sizer);
@@ -509,8 +538,925 @@ void wxPlottingFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
     wxMessageBox(
         "wxPlotting test application\n\n"
         "Hosts an owner-drawn wxPlotting control that renders "
-        "via an off-screen wxMemoryDC.",
+        "via an off-screen wxMemoryDC.\n\n"
+        "• Hover to see hit-test results in the status bar.\n"
+        "• Drag a vertical axis band (not the time axis) to move it "
+        "while keeping its height (start/end span) fixed.\n"
+        "• Mouse wheel over Analog1/Analog2 zooms that axis data range "
+        "by 25% (up = zoom in, down = zoom out).\n"
+        "• Use the Axis and Series menus to edit Analog1 and Series1.",
         "About wxPlotting",
         wxOK | wxICON_INFORMATION,
         this);
+}
+
+// ----------------------------------------------------------------------------
+// property menus (Analog1 / Series1)
+// ----------------------------------------------------------------------------
+
+void wxPlottingFrame::BuildPropertyMenus(wxMenuBar* menuBar)
+{
+    // ----- Axis: Analog1 ---------------------------------------------------
+    wxMenu* axisMenu = new wxMenu;
+
+    axisMenu->AppendCheckItem(ID_AXIS_VISIBLE, "&Visible",
+                              "Show or hide the Analog1 axis");
+    axisMenu->Append(ID_AXIS_WIDTH, "&Width...",
+                     "Axis line pen width in pixels");
+    axisMenu->Append(ID_AXIS_FOREGROUND, "&Foreground colour...",
+                     "Axis line colour");
+    axisMenu->AppendSeparator();
+
+    axisMenu->Append(ID_AXIS_LOCATION, "L&ocation...",
+                     "Normalized axis line location [0,1]");
+    axisMenu->Append(ID_AXIS_POS_START, "Position &start...",
+                     "Normalized band start [0,1]");
+    axisMenu->Append(ID_AXIS_POS_END, "Position &end...",
+                     "Normalized band end [0,1]");
+    axisMenu->Append(ID_AXIS_RANGE_START, "&Range start...",
+                     "Data range start (e.g. volts)");
+    axisMenu->Append(ID_AXIS_RANGE_END, "Range e&nd...",
+                     "Data range end (e.g. volts)");
+    axisMenu->Append(ID_AXIS_SCALE, "Sca&le...",
+                     "Reserved scale factor");
+    axisMenu->AppendSeparator();
+
+    axisMenu->AppendCheckItem(ID_AXIS_TICK_VISIBLE, "&Tick marks",
+                              "Show tick marks");
+    axisMenu->Append(ID_AXIS_TICK_COLOR, "Tick &colour...",
+                     "Tick mark and tick label colour");
+    {
+        wxMenu* tickSide = new wxMenu;
+        tickSide->AppendRadioItem(ID_AXIS_TICK_SIDE_BELOW, "Below / &Left");
+        tickSide->AppendRadioItem(ID_AXIS_TICK_SIDE_ABOVE, "Above / &Right");
+        axisMenu->AppendSubMenu(tickSide, "Tick s&ide");
+    }
+    axisMenu->Append(ID_AXIS_TICK_RANGE, "Tick r&ange...",
+                     "Spacing between ticks in data units");
+    axisMenu->Append(ID_AXIS_TICK_FONT, "Tick &font...",
+                     "Font for numeric tick labels");
+    axisMenu->AppendCheckItem(ID_AXIS_TICK_LABEL_VISIBLE, "Tick la&bels",
+                              "Show numeric values at ticks");
+    axisMenu->Append(ID_AXIS_TICK_LABEL_FORMAT, "Tick label f&ormat...",
+                     "printf-style format (e.g. %.1f)");
+    axisMenu->AppendSeparator();
+
+    axisMenu->Append(ID_AXIS_LABEL, "Title te&xt...",
+                     "Axis title string");
+    axisMenu->AppendCheckItem(ID_AXIS_LABEL_VISIBLE, "Title &visible",
+                              "Show the axis title");
+    axisMenu->Append(ID_AXIS_LABEL_COLOR, "Title c&olour...",
+                     "Axis title colour");
+    {
+        wxMenu* labelSide = new wxMenu;
+        labelSide->AppendRadioItem(ID_AXIS_LABEL_SIDE_BELOW, "Below / &Left");
+        labelSide->AppendRadioItem(ID_AXIS_LABEL_SIDE_ABOVE, "Above / &Right");
+        axisMenu->AppendSubMenu(labelSide, "Title si&de");
+    }
+    axisMenu->Append(ID_AXIS_LABEL_FONT, "Title fo&nt...",
+                     "Axis title font");
+    axisMenu->AppendCheckItem(ID_AXIS_LABEL_ROTATED, "Title &rotated",
+                              "Rotate vertical titles 90 degrees");
+    axisMenu->AppendSeparator();
+
+    axisMenu->AppendCheckItem(ID_AXIS_GRID_VISIBLE, "&Grid",
+                              "Show grid lines at ticks");
+    axisMenu->Append(ID_AXIS_GRID_COLOR, "Grid colo&ur...",
+                     "Grid line colour");
+    axisMenu->Append(ID_AXIS_GRID_WIDTH, "Grid wi&dth...",
+                     "Grid pen width in pixels");
+    {
+        wxMenu* gridStyle = new wxMenu;
+        gridStyle->AppendRadioItem(ID_AXIS_GRID_STYLE_SOLID, "&Solid");
+        gridStyle->AppendRadioItem(ID_AXIS_GRID_STYLE_DOT, "&Dot");
+        gridStyle->AppendRadioItem(ID_AXIS_GRID_STYLE_LONG_DASH, "&Long dash");
+        gridStyle->AppendRadioItem(ID_AXIS_GRID_STYLE_SHORT_DASH, "S&hort dash");
+        gridStyle->AppendRadioItem(ID_AXIS_GRID_STYLE_DOT_DASH, "Dot-das&h");
+        gridStyle->AppendRadioItem(ID_AXIS_GRID_STYLE_TRANSPARENT, "&Transparent");
+        axisMenu->AppendSubMenu(gridStyle, "Grid st&yle");
+    }
+
+    // ----- Series: Series1 -------------------------------------------------
+    wxMenu* seriesMenu = new wxMenu;
+    seriesMenu->AppendCheckItem(ID_SERIES_VISIBLE, "&Visible",
+                                "Show or hide Series1");
+    seriesMenu->Append(ID_SERIES_FOREGROUND, "&Foreground colour...",
+                       "Series stroke colour");
+    {
+        wxMenu* styleMenu = new wxMenu;
+        styleMenu->AppendRadioItem(ID_SERIES_STYLE_LINE, "&Line");
+        styleMenu->AppendRadioItem(ID_SERIES_STYLE_STAIR, "&Stair step");
+        seriesMenu->AppendSubMenu(styleMenu, "&Render style");
+    }
+    seriesMenu->AppendSeparator();
+    seriesMenu->Append(ID_SERIES_HORZ_AXIS, "&Horizontal axis...",
+                       "Name of bound horizontal axis");
+    seriesMenu->Append(ID_SERIES_VERT_AXIS, "&Vertical axis...",
+                       "Name of bound vertical axis");
+
+    menuBar->Append(axisMenu, "&Axis");
+    menuBar->Append(seriesMenu, "&Series");
+}
+
+Axis* wxPlottingFrame::DemoAxis() const
+{
+    return m_plot ? m_plot->GetAxis(wxT("Analog1")) : nullptr;
+}
+
+Series* wxPlottingFrame::DemoSeries() const
+{
+    return m_plot ? m_plot->GetSeries(wxT("Series1")) : nullptr;
+}
+
+void wxPlottingFrame::RefreshPlot()
+{
+    if ( m_plot )
+        m_plot->UpdatePlot();
+}
+
+bool wxPlottingFrame::EditInt(const wxString& title, int& value, int minVal, int maxVal)
+{
+    long v = wxGetNumberFromUser(wxT("Enter integer value:"), title, title,
+                                 value, minVal, maxVal, this);
+    if ( v == -1 && value != -1 )
+    {
+        // wxGetNumberFromUser returns -1 on cancel; allow -1 as a real value only
+        // if it was already -1. For our width uses min is >= 0 so cancel is fine.
+        return false;
+    }
+    if ( v < minVal || v > maxVal )
+        return false;
+    if ( static_cast<int>(v) == value )
+        return false;
+    value = static_cast<int>(v);
+    return true;
+}
+
+bool wxPlottingFrame::EditDouble(const wxString& title, double& value)
+{
+    wxString def = wxString::Format(wxT("%.6g"), value);
+    wxTextEntryDialog dlg(this, wxT("Enter numeric value:"), title, def);
+    if ( dlg.ShowModal() != wxID_OK )
+        return false;
+    double v = 0.0;
+    if ( !dlg.GetValue().ToDouble(&v) )
+    {
+        wxMessageBox(wxT("Invalid number."), wxT("Edit"), wxOK | wxICON_WARNING, this);
+        return false;
+    }
+    if ( v == value )
+        return false;
+    value = v;
+    return true;
+}
+
+bool wxPlottingFrame::EditString(const wxString& title, wxString& value)
+{
+    wxTextEntryDialog dlg(this, wxT("Enter text:"), title, value);
+    if ( dlg.ShowModal() != wxID_OK )
+        return false;
+    if ( dlg.GetValue() == value )
+        return false;
+    value = dlg.GetValue();
+    return true;
+}
+
+bool wxPlottingFrame::EditColour(const wxString& title, wxColour& value)
+{
+    const wxColour c = wxGetColourFromUser(this, value, title);
+    if ( !c.IsOk() )
+        return false;
+    if ( c == value )
+        return false;
+    value = c;
+    return true;
+}
+
+bool wxPlottingFrame::EditFont(const wxString& title, wxFont& value)
+{
+    wxFontData data;
+    data.SetInitialFont(value);
+    wxFontDialog dlg(this, data);
+    dlg.SetTitle(title);
+    if ( dlg.ShowModal() != wxID_OK )
+        return false;
+    const wxFont f = dlg.GetFontData().GetChosenFont();
+    if ( !f.IsOk() )
+        return false;
+    value = f;
+    return true;
+}
+
+void wxPlottingFrame::OnAxisMenu(wxCommandEvent& event)
+{
+    Axis* axis = DemoAxis();
+    if ( !axis )
+    {
+        wxMessageBox(wxT("Axis \"Analog1\" is not on the plot."),
+                     wxT("Axis"), wxOK | wxICON_WARNING, this);
+        return;
+    }
+
+    bool changed = false;
+    const int id = event.GetId();
+
+    switch ( id )
+    {
+        case ID_AXIS_VISIBLE:
+            axis->Visible = event.IsChecked();
+            changed = true;
+            break;
+        case ID_AXIS_WIDTH:
+            changed = EditInt(wxT("Axis width"), axis->Width, 1, 64);
+            break;
+        case ID_AXIS_FOREGROUND:
+            changed = EditColour(wxT("Axis foreground"), axis->Foreground);
+            break;
+        case ID_AXIS_LOCATION:
+        {
+            double v = axis->GetLocation();
+            if ( EditDouble(wxT("Axis location [0,1]"), v) )
+            {
+                axis->SetLocation(v);
+                changed = true;
+            }
+            break;
+        }
+        case ID_AXIS_POS_START:
+        {
+            double s = axis->GetStart();
+            double e = axis->GetEnd();
+            if ( EditDouble(wxT("Position start"), s) )
+            {
+                axis->SetPosition(s, e);
+                changed = true;
+            }
+            break;
+        }
+        case ID_AXIS_POS_END:
+        {
+            double s = axis->GetStart();
+            double e = axis->GetEnd();
+            if ( EditDouble(wxT("Position end"), e) )
+            {
+                axis->SetPosition(s, e);
+                changed = true;
+            }
+            break;
+        }
+        case ID_AXIS_RANGE_START:
+        {
+            double s = axis->GetRangeStart();
+            double e = axis->GetRangeEnd();
+            if ( EditDouble(wxT("Range start"), s) )
+            {
+                axis->SetRange(s, e);
+                changed = true;
+            }
+            break;
+        }
+        case ID_AXIS_RANGE_END:
+        {
+            double s = axis->GetRangeStart();
+            double e = axis->GetRangeEnd();
+            if ( EditDouble(wxT("Range end"), e) )
+            {
+                axis->SetRange(s, e);
+                changed = true;
+            }
+            break;
+        }
+        case ID_AXIS_SCALE:
+            changed = EditDouble(wxT("Scale"), axis->Scale);
+            break;
+        case ID_AXIS_TICK_VISIBLE:
+            axis->TickVisible = event.IsChecked();
+            changed = true;
+            break;
+        case ID_AXIS_TICK_COLOR:
+            changed = EditColour(wxT("Tick colour"), axis->TickColor);
+            break;
+        case ID_AXIS_TICK_SIDE_BELOW:
+            if ( axis->TickSide != Axis::BelowOrLeft )
+            {
+                axis->TickSide = Axis::BelowOrLeft;
+                changed = true;
+            }
+            break;
+        case ID_AXIS_TICK_SIDE_ABOVE:
+            if ( axis->TickSide != Axis::AboveOrRight )
+            {
+                axis->TickSide = Axis::AboveOrRight;
+                changed = true;
+            }
+            break;
+        case ID_AXIS_TICK_RANGE:
+            changed = EditDouble(wxT("Tick range"), axis->TickRange);
+            break;
+        case ID_AXIS_TICK_FONT:
+            changed = EditFont(wxT("Tick font"), axis->TickFont);
+            break;
+        case ID_AXIS_TICK_LABEL_VISIBLE:
+            axis->TickLabelVisible = event.IsChecked();
+            changed = true;
+            break;
+        case ID_AXIS_TICK_LABEL_FORMAT:
+            changed = EditString(wxT("Tick label format"), axis->TickLabelFormat);
+            break;
+        case ID_AXIS_LABEL:
+            changed = EditString(wxT("Axis title"), axis->Label);
+            break;
+        case ID_AXIS_LABEL_VISIBLE:
+            axis->LabelVisible = event.IsChecked();
+            changed = true;
+            break;
+        case ID_AXIS_LABEL_COLOR:
+            changed = EditColour(wxT("Title colour"), axis->LabelColor);
+            break;
+        case ID_AXIS_LABEL_SIDE_BELOW:
+            if ( axis->LabelSide != Axis::BelowOrLeft )
+            {
+                axis->LabelSide = Axis::BelowOrLeft;
+                changed = true;
+            }
+            break;
+        case ID_AXIS_LABEL_SIDE_ABOVE:
+            if ( axis->LabelSide != Axis::AboveOrRight )
+            {
+                axis->LabelSide = Axis::AboveOrRight;
+                changed = true;
+            }
+            break;
+        case ID_AXIS_LABEL_FONT:
+            changed = EditFont(wxT("Title font"), axis->LabelFont);
+            break;
+        case ID_AXIS_LABEL_ROTATED:
+            axis->LabelRotated = event.IsChecked();
+            changed = true;
+            break;
+        case ID_AXIS_GRID_VISIBLE:
+            axis->GridVisible = event.IsChecked();
+            changed = true;
+            break;
+        case ID_AXIS_GRID_COLOR:
+            changed = EditColour(wxT("Grid colour"), axis->GridColor);
+            break;
+        case ID_AXIS_GRID_WIDTH:
+            changed = EditInt(wxT("Grid width"), axis->GridWidth, 0, 64);
+            break;
+        case ID_AXIS_GRID_STYLE_SOLID:
+            if ( axis->GridStyle != wxPENSTYLE_SOLID )
+            { axis->GridStyle = wxPENSTYLE_SOLID; changed = true; }
+            break;
+        case ID_AXIS_GRID_STYLE_DOT:
+            if ( axis->GridStyle != wxPENSTYLE_DOT )
+            { axis->GridStyle = wxPENSTYLE_DOT; changed = true; }
+            break;
+        case ID_AXIS_GRID_STYLE_LONG_DASH:
+            if ( axis->GridStyle != wxPENSTYLE_LONG_DASH )
+            { axis->GridStyle = wxPENSTYLE_LONG_DASH; changed = true; }
+            break;
+        case ID_AXIS_GRID_STYLE_SHORT_DASH:
+            if ( axis->GridStyle != wxPENSTYLE_SHORT_DASH )
+            { axis->GridStyle = wxPENSTYLE_SHORT_DASH; changed = true; }
+            break;
+        case ID_AXIS_GRID_STYLE_DOT_DASH:
+            if ( axis->GridStyle != wxPENSTYLE_DOT_DASH )
+            { axis->GridStyle = wxPENSTYLE_DOT_DASH; changed = true; }
+            break;
+        case ID_AXIS_GRID_STYLE_TRANSPARENT:
+            if ( axis->GridStyle != wxPENSTYLE_TRANSPARENT )
+            { axis->GridStyle = wxPENSTYLE_TRANSPARENT; changed = true; }
+            break;
+        default:
+            break;
+    }
+
+    if ( changed )
+        RefreshPlot();
+}
+
+void wxPlottingFrame::OnAxisUpdateUI(wxUpdateUIEvent& event)
+{
+    Axis* axis = DemoAxis();
+    event.Enable(axis != nullptr);
+    if ( !axis )
+        return;
+
+    switch ( event.GetId() )
+    {
+        case ID_AXIS_VISIBLE:
+            event.Check(axis->Visible);
+            break;
+        case ID_AXIS_TICK_VISIBLE:
+            event.Check(axis->TickVisible);
+            break;
+        case ID_AXIS_TICK_SIDE_BELOW:
+            event.Check(axis->TickSide == Axis::BelowOrLeft);
+            break;
+        case ID_AXIS_TICK_SIDE_ABOVE:
+            event.Check(axis->TickSide == Axis::AboveOrRight);
+            break;
+        case ID_AXIS_TICK_LABEL_VISIBLE:
+            event.Check(axis->TickLabelVisible);
+            break;
+        case ID_AXIS_LABEL_VISIBLE:
+            event.Check(axis->LabelVisible);
+            break;
+        case ID_AXIS_LABEL_SIDE_BELOW:
+            event.Check(axis->LabelSide == Axis::BelowOrLeft);
+            break;
+        case ID_AXIS_LABEL_SIDE_ABOVE:
+            event.Check(axis->LabelSide == Axis::AboveOrRight);
+            break;
+        case ID_AXIS_LABEL_ROTATED:
+            event.Check(axis->LabelRotated);
+            break;
+        case ID_AXIS_GRID_VISIBLE:
+            event.Check(axis->GridVisible);
+            break;
+        case ID_AXIS_GRID_STYLE_SOLID:
+            event.Check(axis->GridStyle == wxPENSTYLE_SOLID);
+            break;
+        case ID_AXIS_GRID_STYLE_DOT:
+            event.Check(axis->GridStyle == wxPENSTYLE_DOT);
+            break;
+        case ID_AXIS_GRID_STYLE_LONG_DASH:
+            event.Check(axis->GridStyle == wxPENSTYLE_LONG_DASH);
+            break;
+        case ID_AXIS_GRID_STYLE_SHORT_DASH:
+            event.Check(axis->GridStyle == wxPENSTYLE_SHORT_DASH);
+            break;
+        case ID_AXIS_GRID_STYLE_DOT_DASH:
+            event.Check(axis->GridStyle == wxPENSTYLE_DOT_DASH);
+            break;
+        case ID_AXIS_GRID_STYLE_TRANSPARENT:
+            event.Check(axis->GridStyle == wxPENSTYLE_TRANSPARENT);
+            break;
+        default:
+            break;
+    }
+}
+
+void wxPlottingFrame::OnSeriesMenu(wxCommandEvent& event)
+{
+    Series* series = DemoSeries();
+    if ( !series )
+    {
+        wxMessageBox(wxT("Series \"Series1\" is not on the plot."),
+                     wxT("Series"), wxOK | wxICON_WARNING, this);
+        return;
+    }
+
+    bool changed = false;
+    switch ( event.GetId() )
+    {
+        case ID_SERIES_VISIBLE:
+            series->Visible = event.IsChecked();
+            changed = true;
+            break;
+        case ID_SERIES_FOREGROUND:
+            changed = EditColour(wxT("Series foreground"), series->Foreground);
+            break;
+        case ID_SERIES_STYLE_LINE:
+            if ( series->RenderStyle != SeriesRenderStyle::Line )
+            {
+                series->RenderStyle = SeriesRenderStyle::Line;
+                changed = true;
+            }
+            break;
+        case ID_SERIES_STYLE_STAIR:
+            if ( series->RenderStyle != SeriesRenderStyle::StairStep )
+            {
+                series->RenderStyle = SeriesRenderStyle::StairStep;
+                changed = true;
+            }
+            break;
+        case ID_SERIES_HORZ_AXIS:
+            changed = EditString(wxT("Horizontal axis name"), series->HorizontalAxis);
+            break;
+        case ID_SERIES_VERT_AXIS:
+            changed = EditString(wxT("Vertical axis name"), series->VerticalAxis);
+            break;
+        default:
+            break;
+    }
+
+    if ( changed )
+        RefreshPlot();
+}
+
+void wxPlottingFrame::OnSeriesUpdateUI(wxUpdateUIEvent& event)
+{
+    Series* series = DemoSeries();
+    event.Enable(series != nullptr);
+    if ( !series )
+        return;
+
+    switch ( event.GetId() )
+    {
+        case ID_SERIES_VISIBLE:
+            event.Check(series->Visible);
+            break;
+        case ID_SERIES_STYLE_LINE:
+            event.Check(series->RenderStyle == SeriesRenderStyle::Line);
+            break;
+        case ID_SERIES_STYLE_STAIR:
+            event.Check(series->RenderStyle == SeriesRenderStyle::StairStep);
+            break;
+        default:
+            break;
+    }
+}
+
+bool wxPlottingFrame::IsWheelZoomAxis(const wxString& name)
+{
+    return name == wxT("Analog1") || name == wxT("Analog2");
+}
+
+void wxPlottingFrame::ZoomAxisRange(Axis& axis, bool zoomIn)
+{
+    const double lo = axis.GetRangeStart();
+    const double hi = axis.GetRangeEnd();
+    const double mid = (lo + hi) * 0.5;
+    double halfSpan = std::fabs(hi - lo) * 0.5;
+
+    // One wheel notch: 25% smaller (zoom in) or 25% larger (zoom out) span.
+    if ( zoomIn )
+        halfSpan *= 0.75;
+    else
+        halfSpan *= 1.25;
+
+    // Avoid a degenerate zero-width range.
+    if ( halfSpan < 1e-15 )
+        halfSpan = 1e-15;
+
+    if ( hi >= lo )
+        axis.SetRange(mid - halfSpan, mid + halfSpan);
+    else
+        axis.SetRange(mid + halfSpan, mid - halfSpan);
+}
+
+bool wxPlottingFrame::ClientToPlotY(const wxPoint& clientPos,
+                                    int& canvasY,
+                                    int& plotHeight) const
+{
+    if ( !m_plot )
+        return false;
+
+    int canvasX = 0;
+    m_plot->CalcUnscrolledPosition(clientPos.x, clientPos.y, &canvasX, &canvasY);
+
+    plotHeight = m_plot->GetDrawingHeight()
+               - m_plot->GetMarginTop()
+               - m_plot->GetMarginBottom();
+    return plotHeight > 0;
+}
+
+wxString wxPlottingFrame::VerticalAxisFromHit(const PlotHitResult& hit) const
+{
+    if ( !m_plot )
+        return wxString();
+
+    for ( const wxString& name : hit.axes )
+    {
+        const Axis* axis = m_plot->GetAxis(name);
+        if ( axis && axis->GetAxisType() == Axis::Vertical )
+            return name;
+    }
+    return wxString();
+}
+
+void wxPlottingFrame::UpdateHitStatus(const PlotHitResult& hit, bool dragging)
+{
+    wxString axesText;
+    for ( size_t i = 0; i < hit.axes.size(); ++i )
+    {
+        if ( i )
+            axesText += wxT(", ");
+        axesText += hit.axes[i];
+    }
+    if ( axesText.empty() )
+        axesText = wxT("—");
+
+    wxString prefix;
+    if ( dragging )
+        prefix = wxString::Format("Dragging vertical axis \"%s\" | ", m_dragAxisName);
+
+    switch ( hit.kind )
+    {
+        case PlotHitKind::Series:
+            SetStatusText(prefix + wxString::Format(
+                "Series: %s  axes: [%s]  sample[%lu]=(%.4g, %.4g)  d=%.1fpx",
+                hit.name,
+                axesText,
+                static_cast<unsigned long>(hit.sampleIndex),
+                hit.dataPoint.x, hit.dataPoint.y,
+                hit.distancePx));
+            break;
+        case PlotHitKind::Axis:
+            SetStatusText(prefix + wxString::Format("Axes: [%s]", axesText));
+            break;
+        case PlotHitKind::PlotArea:
+            SetStatusText(prefix + wxT("Plot area"));
+            break;
+        case PlotHitKind::None:
+        default:
+            SetStatusText(prefix.IsEmpty() ? wxString(wxT("—")) : prefix);
+            break;
+    }
+}
+
+wxCursor wxPlottingFrame::CursorForHit(const PlotHitResult& hit) const
+{
+    if ( m_draggingAxis )
+        return wxCursor(wxCURSOR_SIZENS);
+
+    // Vertical axis band (or series over that band): show drag affordance.
+    if ( !VerticalAxisFromHit(hit).IsEmpty() )
+        return wxCursor(wxCURSOR_SIZENS);
+
+    // Series stroke with no vertical axis region (unlikely) — inspect crosshair.
+    if ( hit.kind == PlotHitKind::Series )
+        return wxCursor(wxCURSOR_CROSS);
+
+    return *wxSTANDARD_CURSOR;
+}
+
+void wxPlottingFrame::UpdatePlotCursor(const wxPoint& clientPos)
+{
+    if ( !m_plot )
+        return;
+
+    if ( m_draggingAxis )
+    {
+        m_plot->SetCursor(wxCursor(wxCURSOR_SIZENS));
+        return;
+    }
+
+    const PlotHitResult hit = m_plot->HitTest(clientPos);
+    m_plot->SetCursor(CursorForHit(hit));
+}
+
+void wxPlottingFrame::EndAxisDrag()
+{
+    if ( !m_draggingAxis )
+        return;
+
+    m_draggingAxis = false;
+    m_dragAxisName.clear();
+
+    if ( m_plot && m_plot->HasCapture() )
+        m_plot->ReleaseMouse();
+
+    // Restore cursor for whatever is under the pointer after release.
+    if ( m_plot )
+    {
+        const wxPoint pt = m_plot->ScreenToClient(wxGetMousePosition());
+        UpdatePlotCursor(pt);
+    }
+}
+
+void wxPlottingFrame::OnPlotLeftDown(wxMouseEvent& event)
+{
+    if ( !m_plot || !event.LeftDown() )
+    {
+        event.Skip();
+        return;
+    }
+
+    const PlotHitResult hit = m_plot->HitTest(event.GetPosition());
+    const wxString vertName = VerticalAxisFromHit(hit);
+    if ( vertName.IsEmpty() )
+    {
+        UpdatePlotCursor(event.GetPosition());
+        event.Skip();
+        return;
+    }
+
+    Axis* axis = m_plot->GetAxis(vertName);
+    if ( !axis )
+    {
+        event.Skip();
+        return;
+    }
+
+    int canvasY = 0;
+    int plotHeight = 0;
+    if ( !ClientToPlotY(event.GetPosition(), canvasY, plotHeight) )
+    {
+        event.Skip();
+        return;
+    }
+
+    m_draggingAxis = true;
+    m_dragAxisName = vertName;
+    m_dragOrigStart = axis->GetStart();
+    m_dragOrigEnd = axis->GetEnd();
+    m_dragStartCanvasY = canvasY;
+
+    m_plot->CaptureMouse();
+    m_plot->SetCursor(wxCursor(wxCURSOR_SIZENS));
+
+    UpdateHitStatus(hit, true);
+    event.Skip(false); // consume — we are dragging
+}
+
+void wxPlottingFrame::OnPlotLeftUp(wxMouseEvent& event)
+{
+    if ( m_draggingAxis )
+        EndAxisDrag();
+
+    if ( m_plot )
+    {
+        UpdatePlotCursor(event.GetPosition());
+        UpdateHitStatus(m_plot->HitTest(event.GetPosition()), false);
+    }
+
+    event.Skip();
+}
+
+void wxPlottingFrame::OnPlotCaptureLost(wxMouseCaptureLostEvent& WXUNUSED(event))
+{
+    // Do not call ReleaseMouse here — capture is already gone.
+    m_draggingAxis = false;
+    m_dragAxisName.clear();
+    if ( m_plot )
+        m_plot->SetCursor(*wxSTANDARD_CURSOR);
+}
+
+void wxPlottingFrame::OnPlotSetCursor(wxSetCursorEvent& event)
+{
+    // Reliable path on Windows: OS queries the window for the cursor.
+    if ( !m_plot )
+    {
+        event.Skip();
+        return;
+    }
+
+    if ( m_draggingAxis )
+    {
+        event.SetCursor(wxCursor(wxCURSOR_SIZENS));
+        return;
+    }
+
+    const PlotHitResult hit = m_plot->HitTest(wxPoint(event.GetX(), event.GetY()));
+    event.SetCursor(CursorForHit(hit));
+}
+
+void wxPlottingFrame::OnPlotLeaveWindow(wxMouseEvent& event)
+{
+    // Avoid leaving a resize cursor stuck when the pointer exits the plot.
+    if ( m_plot && !m_draggingAxis )
+        m_plot->SetCursor(*wxSTANDARD_CURSOR);
+
+    event.Skip();
+}
+
+void wxPlottingFrame::OnPlotMouseWheel(wxMouseEvent& event)
+{
+    if ( !m_plot || m_draggingAxis )
+    {
+        event.Skip();
+        return;
+    }
+
+    const int rotation = event.GetWheelRotation();
+    if ( rotation == 0 )
+    {
+        event.Skip();
+        return;
+    }
+
+    // One physical wheel notch: zoom in (away/up) or out (toward/down).
+    const bool zoomIn = rotation > 0;
+
+    const PlotHitResult hit = m_plot->HitTest(event.GetPosition());
+    bool handled = false;
+    wxString zoomed;
+
+    for ( const wxString& name : hit.axes )
+    {
+        if ( !IsWheelZoomAxis(name) )
+            continue;
+
+        Axis* axis = m_plot->GetAxis(name);
+        if ( !axis )
+            continue;
+
+        ZoomAxisRange(*axis, zoomIn);
+        handled = true;
+        if ( !zoomed.IsEmpty() )
+            zoomed += wxT(", ");
+        zoomed += name;
+    }
+
+    if ( !handled )
+    {
+        // Not over Analog1/Analog2 — allow normal scrolled-window wheel behavior.
+        event.Skip();
+        return;
+    }
+
+    m_plot->UpdatePlot();
+
+    // Refresh status after the range change.
+    const PlotHitResult hitAfter = m_plot->HitTest(event.GetPosition());
+    Axis* a = nullptr;
+    for ( const wxString& name : hitAfter.axes )
+    {
+        if ( IsWheelZoomAxis(name) )
+        {
+            a = m_plot->GetAxis(name);
+            break;
+        }
+    }
+
+    if ( a )
+    {
+        SetStatusText(wxString::Format(
+            "Wheel %s on [%s]  range [%.4g, %.4g]  span=%.4g",
+            zoomIn ? wxT("zoom in") : wxT("zoom out"),
+            zoomed,
+            a->GetRangeStart(), a->GetRangeEnd(),
+            a->GetRangeEnd() - a->GetRangeStart()));
+    }
+    else
+    {
+        UpdateHitStatus(hitAfter, false);
+    }
+
+    // Consume the event so the plot does not also scroll this notch.
+    event.Skip(false);
+}
+
+void wxPlottingFrame::OnPlotMotion(wxMouseEvent& event)
+{
+    if ( !m_plot )
+        return;
+
+    // Drag update: keep size-NS cursor for the whole gesture (including outside).
+    if ( m_draggingAxis && event.LeftIsDown() )
+    {
+        m_plot->SetCursor(wxCursor(wxCURSOR_SIZENS));
+
+        Axis* axis = m_plot->GetAxis(m_dragAxisName);
+        int canvasY = 0;
+        int plotHeight = 0;
+        if ( axis && ClientToPlotY(event.GetPosition(), canvasY, plotHeight) )
+        {
+            // Screen Y increases downward; plot-normalized Y increases upward.
+            const double dNy =
+                -static_cast<double>(canvasY - m_dragStartCanvasY)
+                / static_cast<double>(plotHeight);
+
+            const double span = m_dragOrigEnd - m_dragOrigStart;
+            double start = m_dragOrigStart + dNy;
+            double end = m_dragOrigEnd + dNy;
+
+            // Keep (end - start) fixed; clamp the band into [0, 1].
+            if ( span >= 0.0 )
+            {
+                if ( start < 0.0 )
+                {
+                    start = 0.0;
+                    end = span;
+                }
+                if ( end > 1.0 )
+                {
+                    end = 1.0;
+                    start = 1.0 - span;
+                }
+            }
+            else
+            {
+                // Inverted span (end < start): preserve signed distance.
+                if ( end < 0.0 )
+                {
+                    end = 0.0;
+                    start = -span;
+                }
+                if ( start > 1.0 )
+                {
+                    start = 1.0;
+                    end = 1.0 + span;
+                }
+            }
+
+            axis->SetPosition(start, end);
+            m_plot->UpdatePlot();
+
+            SetStatusText(wxString::Format(
+                "Dragging vertical axis \"%s\"  position [%.3f, %.3f]  span=%.3f",
+                m_dragAxisName, start, end, end - start));
+        }
+
+        event.Skip(false);
+        return;
+    }
+
+    // Hover: hit-test feedback + cursor for drag target / series inspect.
+    UpdatePlotCursor(event.GetPosition());
+    UpdateHitStatus(m_plot->HitTest(event.GetPosition()), false);
+    event.Skip();
 }
