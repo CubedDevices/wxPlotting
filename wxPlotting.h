@@ -61,6 +61,8 @@ public:
     bool AddSeries(const Series& series);
 
     // Lookup by name; returns nullptr if not found.
+    // Series point data is thread-safe via Series::AppendPoint / GetPoints /
+    // etc.  Call UpdatePlot() (or CallAfter it) on the UI thread after changes.
     Axis* GetAxis(const wxString& name);
     const Axis* GetAxis(const wxString& name) const;
     Series* GetSeries(const wxString& name);

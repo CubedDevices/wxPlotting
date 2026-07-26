@@ -198,10 +198,15 @@ void wxPlotting::CreateDefaultPlot()
     series1.Foreground = wxString("White");
     series1.Visible = true;
 
-    for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
     {
-        double s = sin(timestamp * M_PI / 22.5) * 3.3;
-        series1.Data.push_back(wxRealPoint(timestamp, s));
+        Series::Points pts;
+        pts.reserve(100);
+        for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+        {
+            double s = sin(timestamp * M_PI / 22.5) * 3.3;
+            pts.push_back(wxRealPoint(timestamp, s));
+        }
+        series1.SetPoints(std::move(pts));
     }
 
     AddSeries(series1);
@@ -212,10 +217,15 @@ void wxPlotting::CreateDefaultPlot()
     series2.Foreground = wxString("White");
     series2.Visible = true;
 
-    for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
     {
-        double s = cos(timestamp * M_PI / 22.5) * 3.3;
-        series2.Data.push_back(wxRealPoint(timestamp, s));
+        Series::Points pts;
+        pts.reserve(100);
+        for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+        {
+            double s = cos(timestamp * M_PI / 22.5) * 3.3;
+            pts.push_back(wxRealPoint(timestamp, s));
+        }
+        series2.SetPoints(std::move(pts));
     }
 
     AddSeries(series2);
@@ -226,10 +236,15 @@ void wxPlotting::CreateDefaultPlot()
     series3.Foreground = wxString("White");
     series3.Visible = true;
 
-    for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
     {
-        double s = (cos(timestamp * M_PI / 22.5) + sin(timestamp * M_PI / 22.5)) * 3.3;
-        series3.Data.push_back(wxRealPoint(timestamp, s));
+        Series::Points pts;
+        pts.reserve(100);
+        for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+        {
+            double s = (cos(timestamp * M_PI / 22.5) + sin(timestamp * M_PI / 22.5)) * 3.3;
+            pts.push_back(wxRealPoint(timestamp, s));
+        }
+        series3.SetPoints(std::move(pts));
     }
 
     AddSeries(series3);
@@ -831,8 +846,12 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
         wxPen seriesPen(iter->Foreground);
         dc.SetPen(seriesPen);
 
-        for (Series::Points::iterator ptIter = iter->Data.begin();
-            ptIter != iter->Data.end();
+        // Snapshot under the series mutex so a worker can append/replace
+        // points while we draw without racing or holding the lock during GDI.
+        const Series::Points points = iter->GetPoints();
+
+        for (Series::Points::const_iterator ptIter = points.begin();
+            ptIter != points.end();
             ++ptIter
             )
         {
