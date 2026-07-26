@@ -13,6 +13,8 @@
 #include <utility>
 #include <vector>
 
+#include "seriesrenderer.h"
+
 /**
  * @file series.h
  * @brief Thread-safe data series used by @ref wxPlotting.
@@ -87,6 +89,7 @@ public:
     Series(const Series& other)
         : Visible(other.Visible),
           Foreground(other.Foreground),
+          RenderStyle(other.RenderStyle),
           HorizontalAxis(other.HorizontalAxis),
           VerticalAxis(other.VerticalAxis),
           m_name(other.m_name),
@@ -107,6 +110,7 @@ public:
 
         const bool visible = other.Visible;
         const wxColor foreground = other.Foreground;
+        const SeriesRenderStyle renderStyle = other.RenderStyle;
         const wxString horz = other.HorizontalAxis;
         const wxString vert = other.VerticalAxis;
         const wxString name = other.m_name;
@@ -120,6 +124,7 @@ public:
 
         Visible = visible;
         Foreground = foreground;
+        RenderStyle = renderStyle;
         HorizontalAxis = horz;
         VerticalAxis = vert;
         m_name = name;
@@ -139,6 +144,7 @@ public:
     Series(Series&& other) noexcept
         : Visible(other.Visible),
           Foreground(std::move(other.Foreground)),
+          RenderStyle(other.RenderStyle),
           HorizontalAxis(std::move(other.HorizontalAxis)),
           VerticalAxis(std::move(other.VerticalAxis)),
           m_name(std::move(other.m_name)),
@@ -159,6 +165,7 @@ public:
 
         Visible = other.Visible;
         Foreground = std::move(other.Foreground);
+        RenderStyle = other.RenderStyle;
         HorizontalAxis = std::move(other.HorizontalAxis);
         VerticalAxis = std::move(other.VerticalAxis);
         m_name = std::move(other.m_name);
@@ -297,6 +304,15 @@ public:
      * @note Not mutex-protected; set on the UI thread.
      */
     wxColor  Foreground;
+
+    /**
+     * @brief How samples are stroked when the series is drawn.
+     * @details A short-lived @ref SeriesRenderer is created for this style for
+     *          each draw pass (@ref CreateSeriesRenderer).
+     * @see SeriesRenderStyle, SeriesRenderer
+     * @note Not mutex-protected; set on the UI thread.
+     */
+    SeriesRenderStyle RenderStyle = SeriesRenderStyle::Line;
 
     /**
      * @brief Name of the horizontal @ref Axis this series uses for X mapping.
