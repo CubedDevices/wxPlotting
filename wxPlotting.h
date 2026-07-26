@@ -52,9 +52,6 @@ public:
 
     virtual ~wxPlotting();
 
-    // Create a default plot
-    void CreateDefaultPlot();
-
     // Axis / series collections (names must be unique within each list).
     // Add* returns false if the name is empty or already in use.
     bool AddAxis(const Axis& axis);
