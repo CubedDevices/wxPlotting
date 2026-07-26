@@ -242,6 +242,135 @@ void wxPlotting::UpdatePlot(bool forceImmediate)
 
 namespace
 {
+    // Shared with drawing and hit-test.
+    const int kTickLength = 10;
+    const int kLabelPad = 4;
+
+    wxString FormatTickValue(const Axis& axis, double value)
+    {
+        const wxString& fmt = axis.TickLabelFormat.IsEmpty()
+            ? wxString("%g")
+            : axis.TickLabelFormat;
+        return wxString::Format(fmt, value);
+    }
+
+    int AxisTitleClearance(wxDC& dc, const Axis& axis, bool horizontal)
+    {
+        int clear = (axis.Width + 1) / 2 + kLabelPad;
+
+        if ( axis.LabelSide != axis.TickSide )
+            return clear + 10;
+
+        if ( axis.TickVisible )
+            clear += kTickLength;
+
+        if ( axis.TickLabelVisible )
+        {
+            dc.SetFont(axis.TickFont);
+            if ( horizontal )
+            {
+                clear += dc.GetCharHeight() + kLabelPad;
+            }
+            else
+            {
+                const wxString s0 = FormatTickValue(axis, axis.GetRangeStart());
+                const wxString s1 = FormatTickValue(axis, axis.GetRangeEnd());
+                const int w0 = dc.GetTextExtent(s0).x;
+                const int w1 = dc.GetTextExtent(s1).x;
+                clear += wxMax(w0, w1) + kLabelPad;
+            }
+        }
+        else if ( !axis.TickVisible )
+        {
+            clear += 10;
+        }
+
+        return clear;
+    }
+
+    void AxisScreenEndpoints(const Axis& axis, const wxRect& plot,
+                             wxPoint& outStart, wxPoint& outEnd)
+    {
+        if ( axis.GetAxisType() == Axis::Horizontal )
+        {
+            outStart.x = plot.x + wxRound(axis.GetStart() * plot.GetWidth());
+            outStart.y = plot.y + plot.GetHeight()
+                       - wxRound(axis.GetLocation() * plot.GetHeight());
+            outEnd.x = plot.x + wxRound(axis.GetEnd() * plot.GetWidth());
+            outEnd.y = outStart.y;
+        }
+        else
+        {
+            outStart.x = plot.x + wxRound(axis.GetLocation() * plot.GetWidth());
+            outStart.y = plot.y + plot.GetHeight()
+                       - wxRound(axis.GetStart() * plot.GetHeight());
+            outEnd.x = outStart.x;
+            outEnd.y = plot.y + plot.GetHeight()
+                     - wxRound(axis.GetEnd() * plot.GetHeight());
+        }
+    }
+
+    // Axis title hit box in canvas coordinates (mirrors DrawPlot placement).
+    // Returns false if the axis has no drawable title.
+    bool AxisLabelHitRect(wxDC& dc, const Axis& axis, const wxRect& plot, wxRect& outRect)
+    {
+        if ( !axis.Visible || !axis.LabelVisible || axis.Label.IsEmpty() )
+            return false;
+        if ( axis.GetAxisType() != Axis::Horizontal &&
+             axis.GetAxisType() != Axis::Vertical )
+            return false;
+
+        wxPoint startPt, endPt;
+        AxisScreenEndpoints(axis, plot, startPt, endPt);
+
+        dc.SetFont(axis.LabelFont);
+        const wxSize textSize = dc.GetTextExtent(axis.Label);
+        const bool horizontal = (axis.GetAxisType() == Axis::Horizontal);
+        const int clear = AxisTitleClearance(dc, axis, horizontal);
+
+        if ( horizontal )
+        {
+            const int midX = (startPt.x + endPt.x) / 2;
+            const int labelX = midX - textSize.x / 2;
+            int labelY;
+            if ( axis.LabelSide == Axis::AboveOrRight )
+                labelY = startPt.y - clear - textSize.y;
+            else
+                labelY = startPt.y + clear;
+
+            outRect = wxRect(labelX, labelY, textSize.x, textSize.y);
+            return true;
+        }
+
+        // Vertical
+        const int midY = (startPt.y + endPt.y) / 2;
+        if ( axis.LabelRotated )
+        {
+            // 90°: occupies x in [ox, ox+h], y in [oy-w, oy]
+            const int w = textSize.x;
+            const int h = textSize.y;
+            const int oy = midY + w / 2;
+            int ox;
+            if ( axis.LabelSide == Axis::AboveOrRight )
+                ox = startPt.x + clear;
+            else
+                ox = startPt.x - clear - h;
+
+            outRect = wxRect(ox, oy - w, h, w);
+            return true;
+        }
+
+        const int labelY = midY - textSize.y / 2;
+        int labelX;
+        if ( axis.LabelSide == Axis::AboveOrRight )
+            labelX = startPt.x + clear;
+        else
+            labelX = startPt.x - clear - textSize.x;
+
+        outRect = wxRect(labelX, labelY, textSize.x, textSize.y);
+        return true;
+    }
+
     double DistancePointToSegment(const wxPoint& p, const wxPoint& a, const wxPoint& b)
     {
         const double abx = static_cast<double>(b.x - a.x);
@@ -299,7 +428,8 @@ namespace
         return false;
     }
 
-    void CollectAxesAtPoint(const std::list<Axis>& axes,
+    void CollectAxesAtPoint(wxDC& dc,
+                            const std::list<Axis>& axes,
                             const wxRect& plot,
                             const wxPoint& canvasPos,
                             std::vector<wxString>& outNames)
@@ -309,7 +439,17 @@ namespace
         {
             if ( !axis.Visible )
                 continue;
-            if ( AxisRegionContains(axis, plot, canvasPos) )
+
+            bool hit = AxisRegionContains(axis, plot, canvasPos);
+            if ( !hit )
+            {
+                wxRect labelRect;
+                if ( AxisLabelHitRect(dc, axis, plot, labelRect) &&
+                     labelRect.Contains(canvasPos) )
+                    hit = true;
+            }
+
+            if ( hit )
                 outNames.push_back(axis.GetName());
         }
     }
@@ -459,9 +599,13 @@ PlotHitResult wxPlotting::HitTestCanvas(const wxPoint& canvasPos, int toleranceP
     if ( tolerancePx < 0 )
         tolerancePx = 0;
 
-    // Axes: region containment (full valid-data area), collect all matches.
-    // A typical pick over data yields one horizontal and one vertical axis.
-    CollectAxesAtPoint(m_axisList, m_plot, canvasPos, result.axes);
+    // Metrics for axis title hit boxes (same fonts as drawing).
+    wxClientDC labelDc(const_cast<wxPlotting*>(this));
+
+    // Axes: valid-data region and/or axis title label. A pick over data often
+    // yields one horizontal and one vertical axis; a pick on a title alone
+    // yields that axis (useful for dragging the label).
+    CollectAxesAtPoint(labelDc, m_axisList, m_plot, canvasPos, result.axes);
 
     // --- Series (front-most first: reverse draw order) ---------------------
     for ( auto it = m_seriesList.rbegin(); it != m_seriesList.rend(); ++it )
@@ -669,59 +813,6 @@ void wxPlotting::Render()
 // ----------------------------------------------------------------------------
 // drawing (override / extend later)
 // ----------------------------------------------------------------------------
-
-namespace
-{
-    // Length of a major tick mark in pixels.
-    const int kTickLength = 10;
-    const int kLabelPad = 4;
-
-    wxString FormatTickValue(const Axis& axis, double value)
-    {
-        const wxString& fmt = axis.TickLabelFormat.IsEmpty()
-            ? wxString("%g")
-            : axis.TickLabelFormat;
-        return wxString::Format(fmt, value);
-    }
-
-    // Extra clearance beyond the axis pen for the axis title, so it sits
-    // outside ticks and/or tick labels when those share LabelSide.
-    int AxisTitleClearance(wxDC& dc, const Axis& axis, bool horizontal)
-    {
-        int clear = (axis.Width + 1) / 2 + kLabelPad;
-
-        if ( axis.LabelSide != axis.TickSide )
-            return clear + 10;
-
-        if ( axis.TickVisible )
-            clear += kTickLength;
-
-        if ( axis.TickLabelVisible )
-        {
-            dc.SetFont(axis.TickFont);
-            if ( horizontal )
-            {
-                // Tick values are upright under/over the axis; reserve font height.
-                clear += dc.GetCharHeight() + kLabelPad;
-            }
-            else
-            {
-                // Tick values are upright left/right of the axis; reserve widest value.
-                const wxString s0 = FormatTickValue(axis, axis.GetRangeStart());
-                const wxString s1 = FormatTickValue(axis, axis.GetRangeEnd());
-                const int w0 = dc.GetTextExtent(s0).x;
-                const int w1 = dc.GetTextExtent(s1).x;
-                clear += wxMax(w0, w1) + kLabelPad;
-            }
-        }
-        else if ( !axis.TickVisible )
-        {
-            clear += 10;
-        }
-
-        return clear;
-    }
-} // namespace
 
 void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 {

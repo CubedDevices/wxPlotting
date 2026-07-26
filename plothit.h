@@ -62,8 +62,9 @@ enum class PlotHitKind
  *
  * @details
  * **Axes** use region containment (the full valid-data rectangle of each
- * axis), not proximity to the drawn axis line. A pick in a multi-lane plot
- * typically yields both a horizontal and a vertical axis in @ref axes.
+ * axis) **or** a hit on that axis's title label (same placement as drawing).
+ * A pick in a multi-lane plot typically yields both a horizontal and a
+ * vertical axis in @ref axes; picking a label alone yields that axis.
  *
  * **Series** use distance to the stroked polyline / stair-step within
  * @a tolerancePx. Series hits still populate @ref axes for the same point.
