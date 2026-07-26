@@ -12,6 +12,8 @@
 #include "wx/msgdlg.h"
 #include "wx/statusbr.h"
 
+#include <cmath>
+
 // ----------------------------------------------------------------------------
 // application
 // ----------------------------------------------------------------------------
@@ -499,6 +501,7 @@ wxPlottingFrame::wxPlottingFrame()
     m_plot->Bind(wxEVT_MOUSE_CAPTURE_LOST, &wxPlottingFrame::OnPlotCaptureLost, this);
     m_plot->Bind(wxEVT_SET_CURSOR, &wxPlottingFrame::OnPlotSetCursor, this);
     m_plot->Bind(wxEVT_LEAVE_WINDOW, &wxPlottingFrame::OnPlotLeaveWindow, this);
+    m_plot->Bind(wxEVT_MOUSEWHEEL, &wxPlottingFrame::OnPlotMouseWheel, this);
 
     wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
     sizer->Add(m_plot, 1, wxEXPAND | wxALL, 0);
@@ -520,10 +523,40 @@ void wxPlottingFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
         "via an off-screen wxMemoryDC.\n\n"
         "• Hover to see hit-test results in the status bar.\n"
         "• Drag a vertical axis band (not the time axis) to move it "
-        "while keeping its height (start/end span) fixed.",
+        "while keeping its height (start/end span) fixed.\n"
+        "• Mouse wheel over Analog1/Analog2 zooms that axis data range "
+        "by 25% (up = zoom in, down = zoom out).",
         "About wxPlotting",
         wxOK | wxICON_INFORMATION,
         this);
+}
+
+bool wxPlottingFrame::IsWheelZoomAxis(const wxString& name)
+{
+    return name == wxT("Analog1") || name == wxT("Analog2");
+}
+
+void wxPlottingFrame::ZoomAxisRange(Axis& axis, bool zoomIn)
+{
+    const double lo = axis.GetRangeStart();
+    const double hi = axis.GetRangeEnd();
+    const double mid = (lo + hi) * 0.5;
+    double halfSpan = std::fabs(hi - lo) * 0.5;
+
+    // One wheel notch: 25% smaller (zoom in) or 25% larger (zoom out) span.
+    if ( zoomIn )
+        halfSpan *= 0.75;
+    else
+        halfSpan *= 1.25;
+
+    // Avoid a degenerate zero-width range.
+    if ( halfSpan < 1e-15 )
+        halfSpan = 1e-15;
+
+    if ( hi >= lo )
+        axis.SetRange(mid - halfSpan, mid + halfSpan);
+    else
+        axis.SetRange(mid + halfSpan, mid - halfSpan);
 }
 
 bool wxPlottingFrame::ClientToPlotY(const wxPoint& clientPos,
@@ -740,6 +773,83 @@ void wxPlottingFrame::OnPlotLeaveWindow(wxMouseEvent& event)
         m_plot->SetCursor(*wxSTANDARD_CURSOR);
 
     event.Skip();
+}
+
+void wxPlottingFrame::OnPlotMouseWheel(wxMouseEvent& event)
+{
+    if ( !m_plot || m_draggingAxis )
+    {
+        event.Skip();
+        return;
+    }
+
+    const int rotation = event.GetWheelRotation();
+    if ( rotation == 0 )
+    {
+        event.Skip();
+        return;
+    }
+
+    // One physical wheel notch: zoom in (away/up) or out (toward/down).
+    const bool zoomIn = rotation > 0;
+
+    const PlotHitResult hit = m_plot->HitTest(event.GetPosition());
+    bool handled = false;
+    wxString zoomed;
+
+    for ( const wxString& name : hit.axes )
+    {
+        if ( !IsWheelZoomAxis(name) )
+            continue;
+
+        Axis* axis = m_plot->GetAxis(name);
+        if ( !axis )
+            continue;
+
+        ZoomAxisRange(*axis, zoomIn);
+        handled = true;
+        if ( !zoomed.IsEmpty() )
+            zoomed += wxT(", ");
+        zoomed += name;
+    }
+
+    if ( !handled )
+    {
+        // Not over Analog1/Analog2 — allow normal scrolled-window wheel behavior.
+        event.Skip();
+        return;
+    }
+
+    m_plot->UpdatePlot();
+
+    // Refresh status after the range change.
+    const PlotHitResult hitAfter = m_plot->HitTest(event.GetPosition());
+    Axis* a = nullptr;
+    for ( const wxString& name : hitAfter.axes )
+    {
+        if ( IsWheelZoomAxis(name) )
+        {
+            a = m_plot->GetAxis(name);
+            break;
+        }
+    }
+
+    if ( a )
+    {
+        SetStatusText(wxString::Format(
+            "Wheel %s on [%s]  range [%.4g, %.4g]  span=%.4g",
+            zoomIn ? wxT("zoom in") : wxT("zoom out"),
+            zoomed,
+            a->GetRangeStart(), a->GetRangeEnd(),
+            a->GetRangeEnd() - a->GetRangeStart()));
+    }
+    else
+    {
+        UpdateHitStatus(hitAfter, false);
+    }
+
+    // Consume the event so the plot does not also scroll this notch.
+    event.Skip(false);
 }
 
 void wxPlottingFrame::OnPlotMotion(wxMouseEvent& event)

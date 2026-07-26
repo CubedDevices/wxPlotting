@@ -15,6 +15,7 @@
 #endif
 
 #include "plothit.h"
+#include "axis.h"
 
 class wxPlotting;
 
@@ -97,9 +98,26 @@ private:
     void OnPlotLeaveWindow(wxMouseEvent& event);
 
     /**
+     * @brief Mouse wheel: zoom Analog1/Analog2 data range by 25% when hit.
+     */
+    void OnPlotMouseWheel(wxMouseEvent& event);
+
+    /**
      * @brief Stop an in-progress axis drag and release mouse capture if held.
      */
     void EndAxisDrag();
+
+    /**
+     * @brief True if @a name is a demo axis that supports wheel range zoom.
+     */
+    static bool IsWheelZoomAxis(const wxString& name);
+
+    /**
+     * @brief Scale an axis data range by 25% (zoom in or out), keeping the center fixed.
+     * @param axis Axis to update.
+     * @param zoomIn If @c true, span becomes 75% of current; if @c false, 125%.
+     */
+    static void ZoomAxisRange(Axis& axis, bool zoomIn);
 
     /**
      * @brief Client position → unscrolled canvas Y and plot height for drag math.
