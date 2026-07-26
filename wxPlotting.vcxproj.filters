@@ -15,6 +15,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="seriesrenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="wxPlotting.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -33,6 +36,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="series.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="seriesrenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

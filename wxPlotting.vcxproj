@@ -149,12 +149,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="seriesrenderer.cpp" />
     <ClCompile Include="wxPlotting.cpp" />
     <ClCompile Include="wxPlottingApp.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="axis.h" />
     <ClInclude Include="series.h" />
+    <ClInclude Include="seriesrenderer.h" />
     <ClInclude Include="wxPlotting.h" />
     <ClInclude Include="wxPlottingApp.h" />
   </ItemGroup>

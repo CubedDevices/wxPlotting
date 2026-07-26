@@ -5,6 +5,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 #include "wxPlotting.h"
+#include "seriesrenderer.h"
 
 #include "wx/dcclient.h"
 #include "wx/dcmemory.h"
@@ -734,12 +735,11 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
         if (!foundVertical || !foundHorizontal)
             continue;
 
-        wxPoint lastPoint;
-        wxPoint currentPoint;
-        bool first = true;
-
-        wxPen seriesPen(iter->Foreground);
-        dc.SetPen(seriesPen);
+        // Renderer lives only for this series draw pass. It receives
+        // axis-converted coordinates and maps them to pixels via m_plot.
+        std::unique_ptr<SeriesRenderer> renderer =
+            CreateSeriesRenderer(iter->RenderStyle);
+        renderer->Begin(dc, *iter, m_plot);
 
         // Snapshot under the series mutex so a worker can append/replace
         // points while we draw without racing or holding the lock during GDI.
@@ -752,32 +752,24 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
         {
             if (ptIter->x < horzAxis->GetRangeStart() || (ptIter->x > horzAxis->GetRangeEnd()))
             {
-                first = true;
+                renderer->Break();
                 continue;
             }
             if (ptIter->y < vertAxis->GetRangeStart() || (ptIter->y > vertAxis->GetRangeEnd()))
             {
-                first = true;
+                renderer->Break();
                 continue;
             }
 
-            double x = horzAxis->ConvertValue(ptIter->x);
-            double y = vertAxis->ConvertValue(ptIter->y);
-            currentPoint.x = (x / 1.0) * m_plot.GetWidth();
-            currentPoint.y = m_plot.GetHeight() - (y * m_plot.GetHeight());
+            const wxRealPoint converted(
+                horzAxis->ConvertValue(ptIter->x),
+                vertAxis->ConvertValue(ptIter->y));
 
-            currentPoint.y += m_plot.y;
-            currentPoint.x += m_plot.x;
-
-            if (!first)
-                dc.DrawLine(lastPoint, currentPoint);
-            else
-                first = false;
-
-            lastPoint = currentPoint;
-
+            renderer->AddPoint(converted);
         }
 
+        renderer->End();
+        // unique_ptr destroys the renderer here.
     }
 
     /*
