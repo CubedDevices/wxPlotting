@@ -88,6 +88,7 @@ public:
           LabelColor(*wxWHITE),
           LabelSide(BelowOrLeft),
           LabelFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN)),
+          LabelRotated(true),
           GridVisible(false),
           GridColor(wxColour(80, 80, 80)),
           GridStyle(wxPENSTYLE_SOLID),
@@ -144,6 +145,14 @@ public:
     wxColor  LabelColor;    ///< Axis title colour.
     LabelSide LabelSide;    ///< Side of the axis line for the title.
     wxFont   LabelFont;     ///< Axis title font.
+
+    /**
+     * @brief When @c true (default), vertical axis titles are drawn rotated 90°.
+     * @details Horizontal axis titles are always upright. Set to @c false for
+     *          long vertical titles that should remain horizontal (may need a
+     *          larger left/right margin).
+     */
+    bool     LabelRotated;
 
     bool     GridVisible;   ///< Draw grid lines through tick positions.
     wxColor  GridColor;     ///< Grid line colour.
