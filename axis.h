@@ -6,7 +6,11 @@
 #ifndef WX_PRECOMP
 #include "wx/string.h"
 #include "wx/font.h"
+#include "wx/pen.h"
 #endif
+
+// wxPenStyle is available via wxprec or wx/pen.h above.
+// Grid lines use any cross-platform wxPENSTYLE_* value.
 
 
 class Axis
@@ -73,6 +77,10 @@ public:
 
     bool     GridVisible = true;
     wxColor  GridColor;
+    // Any cross-platform wxPenStyle (solid, dot, dash, hatch, etc.).
+    wxPenStyle GridStyle = wxPENSTYLE_SOLID;
+    // Grid line width in pixels.
+    int      GridWidth = 1;
 
     double   Scale;
 

@@ -114,6 +114,8 @@ void wxPlotting::CreateDefaultPlot()
     test1.TickSide = Axis::BelowOrLeft;
     test1.GridVisible = true;
     test1.GridColor = wxColor("White");
+    test1.GridStyle = wxPENSTYLE_DOT;
+    test1.GridWidth = 1;
 
     Axis test2("Signal1", Axis::Vertical);
     test2.Foreground = (wxColor("Magenta"));
@@ -134,6 +136,8 @@ void wxPlotting::CreateDefaultPlot()
     test2.TickSide = Axis::BelowOrLeft;
     test2.GridVisible = true;
     test2.GridColor = wxColor("White");
+    test2.GridStyle = wxPENSTYLE_DOT;
+    test2.GridWidth = 1;
 
     Axis test3("Signal2", Axis::Vertical);
     test3.Foreground = (wxColor("Cyan"));
@@ -154,6 +158,8 @@ void wxPlotting::CreateDefaultPlot()
     test3.TickSide = Axis::BelowOrLeft;
     test3.GridVisible = true;
     test3.GridColor = wxColor("White");
+    test3.GridStyle = wxPENSTYLE_DOT;
+    test3.GridWidth = 1;
 
     m_axisList.push_back(test1);
     m_axisList.push_back(test2);
@@ -528,7 +534,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
             double rangeDist = rangeEnd - rangeStart;
             if (iter->TickRange > 0.0 && iter->TickRange < rangeDist)
             {
-                wxPen gridColor(iter->GridColor);
+                wxPen penGrid(iter->GridColor, iter->GridWidth, iter->GridStyle);
                 wxPen penTick(iter->TickColor);
 
                 // First tick at or above rangeStart on the TickRange grid.
@@ -574,7 +580,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
                             gridEnd.x = m_plot.x + m_plot.width;
                         }
 
-                        dc.SetPen(gridColor);
+                        dc.SetPen(penGrid);
                         dc.DrawLine(gridStart, gridEnd);
 
                     }
