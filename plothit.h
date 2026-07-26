@@ -61,10 +61,10 @@ enum class PlotHitKind
  * @brief Outcome of a plot hit-test query.
  *
  * @details
- * **Axes** use region containment (the full valid-data rectangle of each
- * axis) **or** a hit on that axis's title label (same placement as drawing).
- * A pick in a multi-lane plot typically yields both a horizontal and a
- * vertical axis in @ref axes; picking a label alone yields that axis.
+ * **Axes** use strip containment from the plot band to the canvas borders
+ * (so ticks, tick labels, and titles in the margins count as the axis
+ * without separate geometry tests). A multi-lane pick typically yields both
+ * a horizontal and a vertical axis in @ref axes.
  *
  * **Series** use distance to the stroked polyline / stair-step within
  * @a tolerancePx. Series hits still populate @ref axes for the same point.

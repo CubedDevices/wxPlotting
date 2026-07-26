@@ -288,89 +288,6 @@ namespace
         return clear;
     }
 
-    void AxisScreenEndpoints(const Axis& axis, const wxRect& plot,
-                             wxPoint& outStart, wxPoint& outEnd)
-    {
-        if ( axis.GetAxisType() == Axis::Horizontal )
-        {
-            outStart.x = plot.x + wxRound(axis.GetStart() * plot.GetWidth());
-            outStart.y = plot.y + plot.GetHeight()
-                       - wxRound(axis.GetLocation() * plot.GetHeight());
-            outEnd.x = plot.x + wxRound(axis.GetEnd() * plot.GetWidth());
-            outEnd.y = outStart.y;
-        }
-        else
-        {
-            outStart.x = plot.x + wxRound(axis.GetLocation() * plot.GetWidth());
-            outStart.y = plot.y + plot.GetHeight()
-                       - wxRound(axis.GetStart() * plot.GetHeight());
-            outEnd.x = outStart.x;
-            outEnd.y = plot.y + plot.GetHeight()
-                     - wxRound(axis.GetEnd() * plot.GetHeight());
-        }
-    }
-
-    // Axis title hit box in canvas coordinates (mirrors DrawPlot placement).
-    // Returns false if the axis has no drawable title.
-    bool AxisLabelHitRect(wxDC& dc, const Axis& axis, const wxRect& plot, wxRect& outRect)
-    {
-        if ( !axis.Visible || !axis.LabelVisible || axis.Label.IsEmpty() )
-            return false;
-        if ( axis.GetAxisType() != Axis::Horizontal &&
-             axis.GetAxisType() != Axis::Vertical )
-            return false;
-
-        wxPoint startPt, endPt;
-        AxisScreenEndpoints(axis, plot, startPt, endPt);
-
-        dc.SetFont(axis.LabelFont);
-        const wxSize textSize = dc.GetTextExtent(axis.Label);
-        const bool horizontal = (axis.GetAxisType() == Axis::Horizontal);
-        const int clear = AxisTitleClearance(dc, axis, horizontal);
-
-        if ( horizontal )
-        {
-            const int midX = (startPt.x + endPt.x) / 2;
-            const int labelX = midX - textSize.x / 2;
-            int labelY;
-            if ( axis.LabelSide == Axis::AboveOrRight )
-                labelY = startPt.y - clear - textSize.y;
-            else
-                labelY = startPt.y + clear;
-
-            outRect = wxRect(labelX, labelY, textSize.x, textSize.y);
-            return true;
-        }
-
-        // Vertical
-        const int midY = (startPt.y + endPt.y) / 2;
-        if ( axis.LabelRotated )
-        {
-            // 90°: occupies x in [ox, ox+h], y in [oy-w, oy]
-            const int w = textSize.x;
-            const int h = textSize.y;
-            const int oy = midY + w / 2;
-            int ox;
-            if ( axis.LabelSide == Axis::AboveOrRight )
-                ox = startPt.x + clear;
-            else
-                ox = startPt.x - clear - h;
-
-            outRect = wxRect(ox, oy - w, h, w);
-            return true;
-        }
-
-        const int labelY = midY - textSize.y / 2;
-        int labelX;
-        if ( axis.LabelSide == Axis::AboveOrRight )
-            labelX = startPt.x + clear;
-        else
-            labelX = startPt.x - clear - textSize.x;
-
-        outRect = wxRect(labelX, labelY, textSize.x, textSize.y);
-        return true;
-    }
-
     double DistancePointToSegment(const wxPoint& p, const wxPoint& a, const wxPoint& b)
     {
         const double abx = static_cast<double>(b.x - a.x);
@@ -396,19 +313,23 @@ namespace
         return std::sqrt(dx * dx + dy * dy);
     }
 
-    // True if canvasPos lies in the axis's valid data region (not merely near
-    // the drawn axis line). Horizontal axes cover their X span across the
-    // full plot height; vertical axes cover their Y span across the full width.
-    bool AxisRegionContains(const Axis& axis, const wxRect& plot, const wxPoint& p)
+    // Axis hit region: the strip of valid plot positions for this axis,
+    // extended to the full canvas so ticks, tick labels, and titles in the
+    // margins are included without per-element geometry tests.
+    //
+    // Horizontal: X span [start,end] within m_plot, Y = entire canvas height.
+    // Vertical:   Y span [start,end] within m_plot, X = entire canvas width.
+    bool AxisRegionContains(const Axis& axis,
+                            const wxRect& plot,
+                            const wxSize& canvasSize,
+                            const wxPoint& p)
     {
         if ( plot.IsEmpty() || plot.GetWidth() <= 0 || plot.GetHeight() <= 0 )
             return false;
-        if ( !plot.Contains(p) )
+        if ( canvasSize.x <= 0 || canvasSize.y <= 0 )
             return false;
-
-        const double nx = (p.x - plot.x) / static_cast<double>(plot.GetWidth());
-        const double ny = 1.0
-            - (p.y - plot.y) / static_cast<double>(plot.GetHeight());
+        if ( p.x < 0 || p.y < 0 || p.x >= canvasSize.x || p.y >= canvasSize.y )
+            return false;
 
         double lo = axis.GetStart();
         double hi = axis.GetEnd();
@@ -420,17 +341,34 @@ namespace
         }
 
         if ( axis.GetAxisType() == Axis::Horizontal )
-            return nx >= lo && nx <= hi;
+        {
+            // Full canvas height covers bottom/top margin ticks and labels.
+            const int x0 = plot.x + wxRound(lo * plot.GetWidth());
+            const int x1 = plot.x + wxRound(hi * plot.GetWidth());
+            const int left = wxMin(x0, x1);
+            const int right = wxMax(x0, x1);
+            return p.x >= left && p.x <= right;
+        }
 
         if ( axis.GetAxisType() == Axis::Vertical )
-            return ny >= lo && ny <= hi;
+        {
+            // Full canvas width covers left/right margin ticks and labels.
+            // Y is inverted: larger normalized value is higher on screen.
+            const int yTop = plot.y + plot.GetHeight()
+                           - wxRound(hi * plot.GetHeight());
+            const int yBot = plot.y + plot.GetHeight()
+                           - wxRound(lo * plot.GetHeight());
+            const int top = wxMin(yTop, yBot);
+            const int bot = wxMax(yTop, yBot);
+            return p.y >= top && p.y <= bot;
+        }
 
         return false;
     }
 
-    void CollectAxesAtPoint(wxDC& dc,
-                            const std::list<Axis>& axes,
+    void CollectAxesAtPoint(const std::list<Axis>& axes,
                             const wxRect& plot,
+                            const wxSize& canvasSize,
                             const wxPoint& canvasPos,
                             std::vector<wxString>& outNames)
     {
@@ -439,17 +377,7 @@ namespace
         {
             if ( !axis.Visible )
                 continue;
-
-            bool hit = AxisRegionContains(axis, plot, canvasPos);
-            if ( !hit )
-            {
-                wxRect labelRect;
-                if ( AxisLabelHitRect(dc, axis, plot, labelRect) &&
-                     labelRect.Contains(canvasPos) )
-                    hit = true;
-            }
-
-            if ( hit )
+            if ( AxisRegionContains(axis, plot, canvasSize, canvasPos) )
                 outNames.push_back(axis.GetName());
         }
     }
@@ -599,13 +527,9 @@ PlotHitResult wxPlotting::HitTestCanvas(const wxPoint& canvasPos, int toleranceP
     if ( tolerancePx < 0 )
         tolerancePx = 0;
 
-    // Metrics for axis title hit boxes (same fonts as drawing).
-    wxClientDC labelDc(const_cast<wxPlotting*>(this));
-
-    // Axes: valid-data region and/or axis title label. A pick over data often
-    // yields one horizontal and one vertical axis; a pick on a title alone
-    // yields that axis (useful for dragging the label).
-    CollectAxesAtPoint(labelDc, m_axisList, m_plot, canvasPos, result.axes);
+    // Axes: full strips to the canvas borders (covers plot band + margins for
+    // ticks, tick labels, and titles). No per-label/per-tick geometry.
+    CollectAxesAtPoint(m_axisList, m_plot, m_drawingSize, canvasPos, result.axes);
 
     // --- Series (front-most first: reverse draw order) ---------------------
     for ( auto it = m_seriesList.rbegin(); it != m_seriesList.rend(); ++it )

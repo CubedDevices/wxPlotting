@@ -368,10 +368,11 @@ public:
      * @brief Hit-test a point already in unscrolled canvas/logical coordinates.
      * @param canvasPos Position in the same space as the off-screen buffer / @c m_plot.
      * @param tolerancePx Max distance in canvas pixels for series stroke hits
-     *        (axis hits use full valid-data region containment, not line distance).
+     *        (axis hits use strip containment to the canvas borders — band plus
+     *        margins for ticks/labels — not line distance).
      * @return Hit result. Priority for @ref PlotHitResult::kind: series stroke,
-     *         then axis region(s), then plot area. @ref PlotHitResult::axes always
-     *         lists every visible axis whose valid region contains the pick
+     *         then axis strip(s), then plot area. @ref PlotHitResult::axes always
+     *         lists every visible axis whose strip contains the pick
      *         (typically one horizontal and one vertical).
      * @see HitTest, PlotHitResult
      */
