@@ -86,6 +86,17 @@ private:
     void OnPlotCaptureLost(wxMouseCaptureLostEvent& event);
 
     /**
+     * @brief Set cursor for the current interaction (Windows-friendly path).
+     * @details Prefer this over only @c SetCursor on motion; OS resets cursors often.
+     */
+    void OnPlotSetCursor(wxSetCursorEvent& event);
+
+    /**
+     * @brief Mouse left the plot: restore the standard cursor.
+     */
+    void OnPlotLeaveWindow(wxMouseEvent& event);
+
+    /**
      * @brief Stop an in-progress axis drag and release mouse capture if held.
      */
     void EndAxisDrag();
@@ -99,6 +110,16 @@ private:
      * @brief Pick the first vertical axis name listed in a hit result (if any).
      */
     wxString VerticalAxisFromHit(const PlotHitResult& hit) const;
+
+    /**
+     * @brief Cursor appropriate for @a hit and current drag state.
+     */
+    wxCursor CursorForHit(const PlotHitResult& hit) const;
+
+    /**
+     * @brief Apply the correct cursor for the client position (and drag state).
+     */
+    void UpdatePlotCursor(const wxPoint& clientPos);
 
     /**
      * @brief Refresh status text from a hit-test result (and optional drag note).

@@ -497,6 +497,8 @@ wxPlottingFrame::wxPlottingFrame()
     m_plot->Bind(wxEVT_LEFT_DOWN, &wxPlottingFrame::OnPlotLeftDown, this);
     m_plot->Bind(wxEVT_LEFT_UP, &wxPlottingFrame::OnPlotLeftUp, this);
     m_plot->Bind(wxEVT_MOUSE_CAPTURE_LOST, &wxPlottingFrame::OnPlotCaptureLost, this);
+    m_plot->Bind(wxEVT_SET_CURSOR, &wxPlottingFrame::OnPlotSetCursor, this);
+    m_plot->Bind(wxEVT_LEAVE_WINDOW, &wxPlottingFrame::OnPlotLeaveWindow, this);
 
     wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
     sizer->Add(m_plot, 1, wxEXPAND | wxALL, 0);
@@ -594,6 +596,37 @@ void wxPlottingFrame::UpdateHitStatus(const PlotHitResult& hit, bool dragging)
     }
 }
 
+wxCursor wxPlottingFrame::CursorForHit(const PlotHitResult& hit) const
+{
+    if ( m_draggingAxis )
+        return wxCursor(wxCURSOR_SIZENS);
+
+    // Vertical axis band (or series over that band): show drag affordance.
+    if ( !VerticalAxisFromHit(hit).IsEmpty() )
+        return wxCursor(wxCURSOR_SIZENS);
+
+    // Series stroke with no vertical axis region (unlikely) — inspect crosshair.
+    if ( hit.kind == PlotHitKind::Series )
+        return wxCursor(wxCURSOR_CROSS);
+
+    return *wxSTANDARD_CURSOR;
+}
+
+void wxPlottingFrame::UpdatePlotCursor(const wxPoint& clientPos)
+{
+    if ( !m_plot )
+        return;
+
+    if ( m_draggingAxis )
+    {
+        m_plot->SetCursor(wxCursor(wxCURSOR_SIZENS));
+        return;
+    }
+
+    const PlotHitResult hit = m_plot->HitTest(clientPos);
+    m_plot->SetCursor(CursorForHit(hit));
+}
+
 void wxPlottingFrame::EndAxisDrag()
 {
     if ( !m_draggingAxis )
@@ -605,8 +638,12 @@ void wxPlottingFrame::EndAxisDrag()
     if ( m_plot && m_plot->HasCapture() )
         m_plot->ReleaseMouse();
 
+    // Restore cursor for whatever is under the pointer after release.
     if ( m_plot )
-        m_plot->SetCursor(*wxSTANDARD_CURSOR);
+    {
+        const wxPoint pt = m_plot->ScreenToClient(wxGetMousePosition());
+        UpdatePlotCursor(pt);
+    }
 }
 
 void wxPlottingFrame::OnPlotLeftDown(wxMouseEvent& event)
@@ -621,6 +658,7 @@ void wxPlottingFrame::OnPlotLeftDown(wxMouseEvent& event)
     const wxString vertName = VerticalAxisFromHit(hit);
     if ( vertName.IsEmpty() )
     {
+        UpdatePlotCursor(event.GetPosition());
         event.Skip();
         return;
     }
@@ -659,7 +697,10 @@ void wxPlottingFrame::OnPlotLeftUp(wxMouseEvent& event)
         EndAxisDrag();
 
     if ( m_plot )
+    {
+        UpdatePlotCursor(event.GetPosition());
         UpdateHitStatus(m_plot->HitTest(event.GetPosition()), false);
+    }
 
     event.Skip();
 }
@@ -673,13 +714,44 @@ void wxPlottingFrame::OnPlotCaptureLost(wxMouseCaptureLostEvent& WXUNUSED(event)
         m_plot->SetCursor(*wxSTANDARD_CURSOR);
 }
 
+void wxPlottingFrame::OnPlotSetCursor(wxSetCursorEvent& event)
+{
+    // Reliable path on Windows: OS queries the window for the cursor.
+    if ( !m_plot )
+    {
+        event.Skip();
+        return;
+    }
+
+    if ( m_draggingAxis )
+    {
+        event.SetCursor(wxCursor(wxCURSOR_SIZENS));
+        return;
+    }
+
+    const PlotHitResult hit = m_plot->HitTest(wxPoint(event.GetX(), event.GetY()));
+    event.SetCursor(CursorForHit(hit));
+}
+
+void wxPlottingFrame::OnPlotLeaveWindow(wxMouseEvent& event)
+{
+    // Avoid leaving a resize cursor stuck when the pointer exits the plot.
+    if ( m_plot && !m_draggingAxis )
+        m_plot->SetCursor(*wxSTANDARD_CURSOR);
+
+    event.Skip();
+}
+
 void wxPlottingFrame::OnPlotMotion(wxMouseEvent& event)
 {
     if ( !m_plot )
         return;
 
-    if ( m_draggingAxis && event.Dragging() && event.LeftIsDown() )
+    // Drag update: keep size-NS cursor for the whole gesture (including outside).
+    if ( m_draggingAxis && event.LeftIsDown() )
     {
+        m_plot->SetCursor(wxCursor(wxCURSOR_SIZENS));
+
         Axis* axis = m_plot->GetAxis(m_dragAxisName);
         int canvasY = 0;
         int plotHeight = 0;
@@ -735,13 +807,8 @@ void wxPlottingFrame::OnPlotMotion(wxMouseEvent& event)
         return;
     }
 
-    // Hover: show hit-test (vertical bands are drag targets).
-    const PlotHitResult hit = m_plot->HitTest(event.GetPosition());
-    if ( !VerticalAxisFromHit(hit).IsEmpty() )
-        m_plot->SetCursor(wxCursor(wxCURSOR_SIZENS));
-    else
-        m_plot->SetCursor(*wxSTANDARD_CURSOR);
-
-    UpdateHitStatus(hit, false);
+    // Hover: hit-test feedback + cursor for drag target / series inspect.
+    UpdatePlotCursor(event.GetPosition());
+    UpdateHitStatus(m_plot->HitTest(event.GetPosition()), false);
     event.Skip();
 }
