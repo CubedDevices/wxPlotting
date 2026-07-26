@@ -109,6 +109,7 @@ void wxPlotting::CreateDefaultPlot()
     test1.TickRange = 10.0; // tick every 10 seconds
     test1.TickColor = wxColor("Green");
     test1.TickVisible = true;
+    test1.TickLabelVisible = true;
     test1.TickSide = Axis::BelowOrLeft;
 
     Axis test2("Signal1", Axis::Vertical);
@@ -124,6 +125,7 @@ void wxPlotting::CreateDefaultPlot()
     test2.TickRange = 1.0;      // 1v ticks
     test2.TickColor = (wxColor("Magenta"));
     test2.TickVisible = true;
+    test2.TickLabelVisible = true;
     test2.TickSide = Axis::BelowOrLeft;
 
     Axis test3("Signal2", Axis::Vertical);
@@ -139,6 +141,7 @@ void wxPlotting::CreateDefaultPlot()
     test3.TickRange = 1.0; // 1v ticks
     test3.TickColor = (wxColor("Cyan"));
     test3.TickVisible = true;
+    test3.TickLabelVisible = true;
     test3.TickSide = Axis::BelowOrLeft;
 
     m_axisList.push_back(test1);
@@ -285,6 +288,56 @@ void wxPlotting::Render()
 // drawing (override / extend later)
 // ----------------------------------------------------------------------------
 
+namespace
+{
+    // Length of a major tick mark in pixels.
+    const int kTickLength = 10;
+    const int kLabelPad = 4;
+
+    wxString FormatTickValue(double value)
+    {
+        return wxString::Format("%g", value);
+    }
+
+    // Extra clearance beyond the axis pen for the axis title, so it sits
+    // outside ticks and/or tick labels when those share LabelSide.
+    int AxisTitleClearance(wxDC& dc, const Axis& axis, bool horizontal)
+    {
+        int clear = (axis.Width + 1) / 2 + kLabelPad;
+
+        if ( axis.LabelSide != axis.TickSide )
+            return clear + 10;
+
+        if ( axis.TickVisible )
+            clear += kTickLength;
+
+        if ( axis.TickLabelVisible )
+        {
+            dc.SetFont(axis.TickFont);
+            if ( horizontal )
+            {
+                // Tick values are upright under/over the axis; reserve font height.
+                clear += dc.GetCharHeight() + kLabelPad;
+            }
+            else
+            {
+                // Tick values are upright left/right of the axis; reserve widest value.
+                const wxString s0 = FormatTickValue(axis.GetRangeStart());
+                const wxString s1 = FormatTickValue(axis.GetRangeEnd());
+                const int w0 = dc.GetTextExtent(s0).x;
+                const int w1 = dc.GetTextExtent(s1).x;
+                clear += wxMax(w0, w1) + kLabelPad;
+            }
+        }
+        else if ( !axis.TickVisible )
+        {
+            clear += 10;
+        }
+
+        return clear;
+    }
+} // namespace
+
 void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 {
     // Placeholder: clear to background and mark the control as a template.
@@ -336,8 +389,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 
                 const wxSize textSize = dc.GetTextExtent(iter->Label);
                 const int midX = (startPt.x + endPt.x) / 2;
-                // Clear half the pen plus padding so glyphs do not sit on the line.
-                const int clear = (iter->Width + 1) / 2 + 14;
+                const int clear = AxisTitleClearance(dc, *iter, true);
                 const int labelX = midX - textSize.x / 2;
                 int labelY;
                 if (iter->LabelSide == Axis::AboveOrRight)
@@ -391,7 +443,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 
                 const wxSize textSize = dc.GetTextExtent(iter->Label);
                 const int midY = (startPt.y + endPt.y) / 2;
-                const int clear = (iter->Width + 1) / 2 + 14;
+                const int clear = AxisTitleClearance(dc, *iter, false);
                 const int w = textSize.x; // length along the axis after rotation
                 const int h = textSize.y; // thickness perpendicular to the axis
 
@@ -414,22 +466,30 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
             }
         }
 
-        if (iter->TickVisible)
+        if (iter->TickVisible || iter->TickLabelVisible)
         {
             double rangeStart = iter->GetRangeStart();
             double rangeEnd = iter->GetRangeEnd();
 
             double rangeDist = rangeEnd - rangeStart;
-            if (iter->TickRange < rangeDist)
+            if (iter->TickRange > 0.0 && iter->TickRange < rangeDist)
             {
                 wxPen penTick(iter->TickColor);
                 dc.SetPen(penTick);
 
-                double t_start = floor(rangeStart / iter->TickRange);
-                if (t_start < rangeStart) t_start += iter->TickRange;
+                // First tick at or above rangeStart on the TickRange grid.
+                double t_start = ceil(rangeStart / iter->TickRange) * iter->TickRange;
+                // Guard floating noise so the start value itself can appear.
+                if ( t_start > rangeStart && (t_start - rangeStart) < iter->TickRange * 1e-9 )
+                    t_start = rangeStart;
+                if ( t_start < rangeStart )
+                    t_start += iter->TickRange;
 
-                while (t_start < rangeEnd)
+                while (t_start <= rangeEnd + iter->TickRange * 1e-9)
                 {
+                    if ( t_start > rangeEnd )
+                        break;
+
                     wxPoint tickPoint;
                     double v = iter->ConvertValue(t_start);
                     if (iter->GetAxisType() == Axis::Horizontal)
@@ -446,30 +506,62 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
                     tickPoint.y += m_plot.y;
                     tickPoint.x += m_plot.x;
 
-                    wxPoint tickStart, tickEnd;
+                    const int tickLen = iter->TickVisible ? kTickLength : 0;
 
-                    if (iter->GetAxisType() == Axis::Horizontal)
+                    if (iter->TickVisible)
                     {
-                        tickStart = tickPoint;
-                        tickEnd.x = tickPoint.x;
+                        wxPoint tickStart = tickPoint;
+                        wxPoint tickEnd = tickPoint;
 
-                        if (iter->TickSide == Axis::BelowOrLeft)
-                            tickEnd.y = tickPoint.y + 10;
-                        else
-                            tickEnd.y = tickPoint.y - 10;
+                        if (iter->GetAxisType() == Axis::Horizontal)
+                        {
+                            if (iter->TickSide == Axis::BelowOrLeft)
+                                tickEnd.y = tickPoint.y + kTickLength;
+                            else
+                                tickEnd.y = tickPoint.y - kTickLength;
+                        }
+                        else if (iter->GetAxisType() == Axis::Vertical)
+                        {
+                            if (iter->TickSide == Axis::BelowOrLeft)
+                                tickEnd.x = tickPoint.x - kTickLength;
+                            else
+                                tickEnd.x = tickPoint.x + kTickLength;
+                        }
+
+                        dc.SetPen(penTick);
+                        dc.DrawLine(tickStart, tickEnd);
                     }
-                    else if (iter->GetAxisType() == Axis::Vertical)
+
+                    if (iter->TickLabelVisible)
                     {
-                        tickStart = tickPoint;
-                        tickEnd.y = tickPoint.y;
+                        // Always upright — never rotate tick values.
+                        dc.SetFont(iter->TickFont);
+                        dc.SetTextForeground(iter->TickColor);
 
-                        if (iter->TickSide == Axis::BelowOrLeft)
-                            tickEnd.x = tickPoint.x - 10;
-                        else
-                            tickEnd.x = tickPoint.x + 10;
+                        const wxString text = FormatTickValue(t_start);
+                        const wxSize ts = dc.GetTextExtent(text);
+
+                        int tx = 0;
+                        int ty = 0;
+                        if (iter->GetAxisType() == Axis::Horizontal)
+                        {
+                            tx = tickPoint.x - ts.x / 2;
+                            if (iter->TickSide == Axis::BelowOrLeft)
+                                ty = tickPoint.y + tickLen + kLabelPad;
+                            else
+                                ty = tickPoint.y - tickLen - kLabelPad - ts.y;
+                        }
+                        else if (iter->GetAxisType() == Axis::Vertical)
+                        {
+                            ty = tickPoint.y - ts.y / 2;
+                            if (iter->TickSide == Axis::BelowOrLeft)
+                                tx = tickPoint.x - tickLen - kLabelPad - ts.x;
+                            else
+                                tx = tickPoint.x + tickLen + kLabelPad;
+                        }
+
+                        dc.DrawText(text, tx, ty);
                     }
-
-                    dc.DrawLine(tickStart, tickEnd);
 
                     t_start += iter->TickRange;
                 }

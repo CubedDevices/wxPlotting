@@ -53,12 +53,14 @@ public:
     int      Width;
     wxColor  Foreground;
 
-    bool     TickVisible;
+    bool     TickVisible = false;
     wxColor  TickColor;
     LabelSide TickSide = BelowOrLeft;
-    double   TickRange;
+    double   TickRange = 1.0;
     wxFont   TickFont = wxFont(wxFontInfo(8).Family(wxFONTFAMILY_MODERN));
-    
+    // When true, draw the numeric value at each tick (always upright text).
+    bool     TickLabelVisible = false;
+
     wxString Label;
     bool     LabelVisible = true;
     wxColor  LabelColor;
