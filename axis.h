@@ -255,6 +255,23 @@ public:
         return m_start + (axisPoint * (m_end - m_start));
     }
 
+    /**
+     * @brief Inverse of @ref ConvertValue: plot-normalized position → data value.
+     * @param plotNorm Position in the axis span [@ref GetStart, @ref GetEnd]
+     *        (same space as @ref ConvertValue output / screen mapping input).
+     * @return Data value in [@ref GetRangeStart, @ref GetRangeEnd].
+     * @details Used by measurement cursors to report axis values under the pointer.
+     */
+    double InverseConvertValue(double plotNorm) const
+    {
+        const double axisSpan = m_end - m_start;
+        if ( axisSpan == 0.0 )
+            return (m_rangeStart + m_rangeEnd) * 0.5;
+
+        const double axisPoint = (plotNorm - m_start) / axisSpan;
+        return m_rangeStart + axisPoint * (m_rangeEnd - m_rangeStart);
+    }
+
 protected:
 
     wxString m_name;       ///< Unique axis identity.

@@ -378,6 +378,23 @@ public:
      */
     PlotHitResult HitTestCanvas(const wxPoint& canvasPos, int tolerancePx = 6) const;
 
+    // --- Measurement cursors -----------------------------------------------
+
+    /**
+     * @brief Enable or change the measurement cursor overlay.
+     * @param mode @ref PlotCursorMode::Off disables tracking and hides guides.
+     * @details When not @c Off, the control tracks the mouse and draws guide
+     *          lines on paint (without re-rendering the full plot buffer).
+     * @note Call on the UI thread.
+     * @see GetCursorMode, PlotCursorMode
+     */
+    void SetCursorMode(PlotCursorMode mode);
+
+    /**
+     * @brief Get the current measurement cursor mode.
+     */
+    PlotCursorMode GetCursorMode() const { return m_cursorMode; }
+
 protected:
     /**
      * @brief Draw the full plot into @a dc (background, axes, series).
@@ -403,6 +420,16 @@ protected:
     void OnEraseBackground(wxEraseEvent& event);
 
     /**
+     * @brief Mouse motion: update measurement cursor tracking when enabled.
+     */
+    void OnMotion(wxMouseEvent& event);
+
+    /**
+     * @brief Mouse leave: hide measurement cursor until re-entry.
+     */
+    void OnLeaveWindow(wxMouseEvent& event);
+
+    /**
      * @brief Recreate the off-screen bitmap and update the plot rectangle.
      */
     void RecreateBuffer();
@@ -418,6 +445,12 @@ protected:
     void DrawSeries(wxMemoryDC& dc, const wxSize& size);
 
     /**
+     * @brief Draw measurement cursor overlay on the paint DC (after buffer blit).
+     * @param dc Paint DC already prepared for scroll.
+     */
+    void DrawCursors(wxDC& dc);
+
+    /**
      * @brief Sync effective drawing size from client size and minimum.
      * @return @c true if the effective drawing size changed.
      */
@@ -427,6 +460,16 @@ protected:
      * @brief Preferred client size for layout (matches minimum canvas).
      */
     wxSize DoGetBestClientSize() const override;
+
+    /**
+     * @brief Find first axis of @a type listed in a hit result.
+     */
+    const Axis* AxisOfTypeFromHit(const PlotHitResult& hit, Axis::AxisType type) const;
+
+    /**
+     * @brief Format a data value using an axis tick format string.
+     */
+    static wxString FormatAxisCursorValue(const Axis& axis, double value);
 
 private:
     std::list<Axis> m_axisList;
@@ -443,6 +486,11 @@ private:
 
     wxSize m_minDrawingSize;
     wxSize m_drawingSize;
+
+    // Measurement cursor overlay (drawn on paint DC, not baked into m_buffer).
+    PlotCursorMode m_cursorMode = PlotCursorMode::Off;
+    bool           m_cursorTracking = false; ///< True when pointer is over the control.
+    wxPoint        m_cursorCanvasPos;        ///< Last mouse position in canvas coords.
 
     wxDECLARE_DYNAMIC_CLASS(wxPlotting);
     wxDECLARE_EVENT_TABLE();

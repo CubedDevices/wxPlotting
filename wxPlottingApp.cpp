@@ -54,6 +54,12 @@ wxBEGIN_EVENT_TABLE(wxPlottingFrame, wxFrame)
                    wxPlottingFrame::OnSeriesMenu)
     EVT_UPDATE_UI_RANGE(ID_SERIES_VISIBLE, ID_SERIES_VERT_AXIS,
                         wxPlottingFrame::OnSeriesUpdateUI)
+
+    // Measurement cursor modes
+    EVT_MENU_RANGE(ID_CURSOR_OFF, ID_CURSOR_COMBINED,
+                   wxPlottingFrame::OnCursorMenu)
+    EVT_UPDATE_UI_RANGE(ID_CURSOR_OFF, ID_CURSOR_COMBINED,
+                        wxPlottingFrame::OnCursorUpdateUI)
 wxEND_EVENT_TABLE()
 
 wxPlottingFrame::wxPlottingFrame()
@@ -71,6 +77,7 @@ wxPlottingFrame::wxPlottingFrame()
     wxMenuBar* menuBar = new wxMenuBar;
     menuBar->Append(fileMenu, "&File");
     BuildPropertyMenus(menuBar);
+    BuildCursorMenu(menuBar);
     menuBar->Append(helpMenu, "&Help");
     SetMenuBar(menuBar);
 
@@ -544,6 +551,8 @@ void wxPlottingFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
         "while keeping its height (start/end span) fixed.\n"
         "• Mouse wheel over Analog1/Analog2 zooms that axis data range "
         "by 25% (up = zoom in, down = zoom out).\n"
+        "• Use the Cursor menu for measurement guides (horizontal, "
+        "vertical, or combined crosshair) with axis values near the pointer.\n"
         "• Use the Axis and Series menus to edit Analog1 and Series1.",
         "About wxPlotting",
         wxOK | wxICON_INFORMATION,
@@ -656,6 +665,20 @@ void wxPlottingFrame::BuildPropertyMenus(wxMenuBar* menuBar)
 
     menuBar->Append(axisMenu, "&Axis");
     menuBar->Append(seriesMenu, "&Series");
+}
+
+void wxPlottingFrame::BuildCursorMenu(wxMenuBar* menuBar)
+{
+    wxMenu* cursorMenu = new wxMenu;
+    cursorMenu->AppendRadioItem(ID_CURSOR_OFF, "&Off",
+                                "Hide measurement cursors");
+    cursorMenu->AppendRadioItem(ID_CURSOR_HORIZONTAL, "&Horizontal",
+                                "Vertical guide line; horizontal-axis value at pointer");
+    cursorMenu->AppendRadioItem(ID_CURSOR_VERTICAL, "&Vertical",
+                                "Horizontal guide line; vertical-axis value at pointer");
+    cursorMenu->AppendRadioItem(ID_CURSOR_COMBINED, "&Combined",
+                                "Crosshair with both axis values");
+    menuBar->Append(cursorMenu, "&Cursor");
 }
 
 Axis* wxPlottingFrame::DemoAxis() const
@@ -1063,6 +1086,80 @@ void wxPlottingFrame::OnSeriesUpdateUI(wxUpdateUIEvent& event)
             break;
         case ID_SERIES_STYLE_STAIR:
             event.Check(series->RenderStyle == SeriesRenderStyle::StairStep);
+            break;
+        default:
+            break;
+    }
+}
+
+void wxPlottingFrame::OnCursorMenu(wxCommandEvent& event)
+{
+    if ( !m_plot )
+        return;
+
+    PlotCursorMode mode = PlotCursorMode::Off;
+    switch ( event.GetId() )
+    {
+        case ID_CURSOR_OFF:
+            mode = PlotCursorMode::Off;
+            break;
+        case ID_CURSOR_HORIZONTAL:
+            mode = PlotCursorMode::Horizontal;
+            break;
+        case ID_CURSOR_VERTICAL:
+            mode = PlotCursorMode::Vertical;
+            break;
+        case ID_CURSOR_COMBINED:
+            mode = PlotCursorMode::Combined;
+            break;
+        default:
+            return;
+    }
+
+    m_plot->SetCursorMode(mode);
+
+    switch ( mode )
+    {
+        case PlotCursorMode::Horizontal:
+            SetStatusText(wxT("Cursor: Horizontal — vertical guide, H-axis value"));
+            break;
+        case PlotCursorMode::Vertical:
+            SetStatusText(wxT("Cursor: Vertical — horizontal guide, V-axis value"));
+            break;
+        case PlotCursorMode::Combined:
+            SetStatusText(wxT("Cursor: Combined — crosshair with both axis values"));
+            break;
+        case PlotCursorMode::Off:
+        default:
+            SetStatusText(wxT("Cursor: Off"));
+            break;
+    }
+}
+
+void wxPlottingFrame::OnCursorUpdateUI(wxUpdateUIEvent& event)
+{
+    if ( !m_plot )
+    {
+        event.Enable(false);
+        return;
+    }
+
+    event.Enable(true);
+    const PlotCursorMode mode = m_plot->GetCursorMode();
+
+    switch ( event.GetId() )
+    {
+        case ID_CURSOR_OFF:
+            event.Check(mode == PlotCursorMode::Off);
+            break;
+        case ID_CURSOR_HORIZONTAL:
+            event.Check(mode == PlotCursorMode::Horizontal);
+            break;
+        case ID_CURSOR_VERTICAL:
+            event.Check(mode == PlotCursorMode::Vertical);
+            break;
+        case ID_CURSOR_COMBINED:
+            event.Check(mode == PlotCursorMode::Combined);
             break;
         default:
             break;

@@ -101,7 +101,13 @@ private:
         ID_SERIES_STYLE_LINE,
         ID_SERIES_STYLE_STAIR,
         ID_SERIES_HORZ_AXIS,
-        ID_SERIES_VERT_AXIS
+        ID_SERIES_VERT_AXIS,
+
+        // Measurement cursors
+        ID_CURSOR_OFF,
+        ID_CURSOR_HORIZONTAL,
+        ID_CURSOR_VERTICAL,
+        ID_CURSOR_COMBINED
     };
 
     void OnExit(wxCommandEvent& event);
@@ -127,6 +133,9 @@ private:
     /** Build &Axis and &Series menus for Analog1 / Series1. */
     void BuildPropertyMenus(wxMenuBar* menuBar);
 
+    /** Build &Cursor menu (measurement cursor modes). */
+    void BuildCursorMenu(wxMenuBar* menuBar);
+
     /** Resolve demo objects (null if missing). */
     Axis*   DemoAxis() const;
     Series* DemoSeries() const;
@@ -140,6 +149,10 @@ private:
     // Series menu handlers
     void OnSeriesMenu(wxCommandEvent& event);
     void OnSeriesUpdateUI(wxUpdateUIEvent& event);
+
+    // Measurement cursor menu
+    void OnCursorMenu(wxCommandEvent& event);
+    void OnCursorUpdateUI(wxUpdateUIEvent& event);
 
     // Property editors (return true if the value changed)
     bool EditInt(const wxString& title, int& value, int minVal, int maxVal);

@@ -35,6 +35,8 @@ wxBEGIN_EVENT_TABLE(wxPlotting, wxScrolledWindow)
     EVT_PAINT(wxPlotting::OnPaint)
     EVT_SIZE(wxPlotting::OnSize)
     EVT_ERASE_BACKGROUND(wxPlotting::OnEraseBackground)
+    EVT_MOTION(wxPlotting::OnMotion)
+    EVT_LEAVE_WINDOW(wxPlotting::OnLeaveWindow)
 wxEND_EVENT_TABLE()
 
 // ----------------------------------------------------------------------------
@@ -1095,6 +1097,9 @@ void wxPlotting::OnPaint(wxPaintEvent& WXUNUSED(event))
 
     if ( m_buffer.IsOk() )
         dc.DrawBitmap(m_buffer, 0, 0, false);
+
+    // Cursors are an overlay — not baked into the buffer (cheap mouse tracking).
+    DrawCursors(dc);
 }
 
 void wxPlotting::OnSize(wxSizeEvent& event)
@@ -1114,4 +1119,148 @@ void wxPlotting::OnEraseBackground(wxEraseEvent& WXUNUSED(event))
 {
     // Intentional no-op: painting is fully handled in OnPaint via the
     // off-screen MemoryDC buffer, which avoids flicker.
+}
+
+void wxPlotting::OnMotion(wxMouseEvent& event)
+{
+    if ( m_cursorMode != PlotCursorMode::Off )
+    {
+        int cx = event.GetX();
+        int cy = event.GetY();
+        CalcUnscrolledPosition(event.GetX(), event.GetY(), &cx, &cy);
+        m_cursorCanvasPos = wxPoint(cx, cy);
+        m_cursorTracking = true;
+        // Overlay only — do not re-render the full plot buffer.
+        Refresh(false);
+    }
+    event.Skip();
+}
+
+void wxPlotting::OnLeaveWindow(wxMouseEvent& event)
+{
+    if ( m_cursorMode != PlotCursorMode::Off && m_cursorTracking )
+    {
+        m_cursorTracking = false;
+        Refresh(false);
+    }
+    event.Skip();
+}
+
+// ----------------------------------------------------------------------------
+// measurement cursors
+// ----------------------------------------------------------------------------
+
+void wxPlotting::SetCursorMode(PlotCursorMode mode)
+{
+    if ( m_cursorMode == mode )
+        return;
+
+    m_cursorMode = mode;
+    if ( m_cursorMode == PlotCursorMode::Off )
+        m_cursorTracking = false;
+
+    Refresh(false);
+}
+
+const Axis* wxPlotting::AxisOfTypeFromHit(const PlotHitResult& hit,
+                                          Axis::AxisType type) const
+{
+    for ( const wxString& name : hit.axes )
+    {
+        const Axis* axis = GetAxis(name);
+        if ( axis && axis->GetAxisType() == type && axis->Visible )
+            return axis;
+    }
+    return nullptr;
+}
+
+wxString wxPlotting::FormatAxisCursorValue(const Axis& axis, double value)
+{
+    const wxString& fmt = axis.TickLabelFormat.IsEmpty()
+        ? wxString("%g")
+        : axis.TickLabelFormat;
+    return wxString::Format(fmt, value);
+}
+
+void wxPlotting::DrawCursors(wxDC& dc)
+{
+    if ( m_cursorMode == PlotCursorMode::Off || !m_cursorTracking )
+        return;
+    if ( m_plot.IsEmpty() || m_plot.GetWidth() <= 0 || m_plot.GetHeight() <= 0 )
+        return;
+
+    // Select axes from the same strip hit-test used for interaction.
+    const PlotHitResult hit = HitTestCanvas(m_cursorCanvasPos, 0);
+    const Axis* horzAxis = AxisOfTypeFromHit(hit, Axis::Horizontal);
+    const Axis* vertAxis = AxisOfTypeFromHit(hit, Axis::Vertical);
+
+    const bool wantH = (m_cursorMode == PlotCursorMode::Horizontal ||
+                        m_cursorMode == PlotCursorMode::Combined);
+    const bool wantV = (m_cursorMode == PlotCursorMode::Vertical ||
+                        m_cursorMode == PlotCursorMode::Combined);
+
+    // Clamp guide lines to the data rectangle.
+    int x = m_cursorCanvasPos.x;
+    int y = m_cursorCanvasPos.y;
+    if ( x < m_plot.GetLeft() ) x = m_plot.GetLeft();
+    if ( x > m_plot.GetRight() ) x = m_plot.GetRight();
+    if ( y < m_plot.GetTop() ) y = m_plot.GetTop();
+    if ( y > m_plot.GetBottom() ) y = m_plot.GetBottom();
+
+    const double plotNormX =
+        (x - m_plot.x) / static_cast<double>(m_plot.GetWidth());
+    const double plotNormY =
+        1.0 - (y - m_plot.y) / static_cast<double>(m_plot.GetHeight());
+
+    wxPen cursorPen(wxColour(255, 255, 0), 1, wxPENSTYLE_DOT);
+    dc.SetPen(cursorPen);
+    dc.SetBrush(*wxTRANSPARENT_BRUSH);
+    dc.SetTextForeground(wxColour(255, 255, 0));
+    dc.SetFont(GetFont());
+
+    wxString labelH;
+    wxString labelV;
+
+    // Horizontal cursor mode → vertical tracking line + H-axis value.
+    if ( wantH && horzAxis )
+    {
+        dc.DrawLine(x, m_plot.GetTop(), x, m_plot.GetBottom());
+        const double dataX = horzAxis->InverseConvertValue(plotNormX);
+        labelH = FormatAxisCursorValue(*horzAxis, dataX);
+    }
+
+    // Vertical cursor mode → horizontal tracking line + V-axis value.
+    if ( wantV && vertAxis )
+    {
+        dc.DrawLine(m_plot.GetLeft(), y, m_plot.GetRight(), y);
+        const double dataY = vertAxis->InverseConvertValue(plotNormY);
+        labelV = FormatAxisCursorValue(*vertAxis, dataY);
+    }
+
+    // Compose readout near the pointer (offset so it is not under the cursor).
+    wxString readout;
+    if ( !labelH.IsEmpty() && !labelV.IsEmpty() )
+        readout = labelH + wxT(", ") + labelV;
+    else if ( !labelH.IsEmpty() )
+        readout = labelH;
+    else if ( !labelV.IsEmpty() )
+        readout = labelV;
+
+    if ( !readout.IsEmpty() )
+    {
+        const wxSize ts = dc.GetTextExtent(readout);
+        int tx = x + 10;
+        int ty = y - ts.y - 6;
+        if ( tx + ts.x > m_plot.GetRight() )
+            tx = x - ts.x - 10;
+        if ( ty < m_plot.GetTop() )
+            ty = y + 6;
+
+        // Slight backdrop for readability on dense plots.
+        dc.SetPen(*wxTRANSPARENT_PEN);
+        dc.SetBrush(wxBrush(wxColour(0, 0, 0, 160)));
+        dc.DrawRectangle(tx - 2, ty - 1, ts.x + 4, ts.y + 2);
+        dc.SetTextForeground(wxColour(255, 255, 0));
+        dc.DrawText(readout, tx, ty);
+    }
 }
