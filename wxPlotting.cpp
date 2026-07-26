@@ -150,7 +150,7 @@ void wxPlotting::CreateDefaultPlot()
     series1.VerticalAxis = wxString("Signal1");
     series1.Visible = true;
 
-    for (auto i = -3.3; i < 3.3; i += 0.1)
+    for (double i = -3.3; i < 3.3; i += 0.1)
     {
         series1.Data.push_back(wxRealPoint(i, i));
     }
@@ -337,7 +337,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
                 const wxSize textSize = dc.GetTextExtent(iter->Label);
                 const int midX = (startPt.x + endPt.x) / 2;
                 // Clear half the pen plus padding so glyphs do not sit on the line.
-                const int clear = (iter->Width + 1) / 2 + 4;
+                const int clear = (iter->Width + 1) / 2 + 14;
                 const int labelX = midX - textSize.x / 2;
                 int labelY;
                 if (iter->LabelSide == Axis::AboveOrRight)
@@ -391,7 +391,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 
                 const wxSize textSize = dc.GetTextExtent(iter->Label);
                 const int midY = (startPt.y + endPt.y) / 2;
-                const int clear = (iter->Width + 1) / 2 + 4;
+                const int clear = (iter->Width + 1) / 2 + 14;
                 const int w = textSize.x; // length along the axis after rotation
                 const int h = textSize.y; // thickness perpendicular to the axis
 
@@ -411,6 +411,68 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
                 }
 
                 dc.DrawRotatedText(iter->Label, labelX, labelY, 90.0);
+            }
+        }
+
+        if (iter->TickVisible)
+        {
+            double rangeStart = iter->GetRangeStart();
+            double rangeEnd = iter->GetRangeEnd();
+
+            double rangeDist = rangeEnd - rangeStart;
+            if (iter->TickRange < rangeDist)
+            {
+                wxPen penTick(iter->TickColor);
+                dc.SetPen(penTick);
+
+                double t_start = floor(rangeStart / iter->TickRange);
+                if (t_start < rangeStart) t_start += iter->TickRange;
+
+                while (t_start < rangeEnd)
+                {
+                    wxPoint tickPoint;
+                    double v = iter->ConvertValue(t_start);
+                    if (iter->GetAxisType() == Axis::Horizontal)
+                    {
+                        tickPoint.x = (v / 1.0) * m_plot.GetWidth();
+                        tickPoint.y = m_plot.GetHeight() - (iter->GetLocation() * m_plot.GetHeight());
+                    }
+                    else if (iter->GetAxisType() == Axis::Vertical)
+                    {
+                        tickPoint.x = (iter->GetLocation() / 1.0) * m_plot.GetWidth();
+                        tickPoint.y = m_plot.GetHeight() - (v * m_plot.GetHeight());
+                    }
+
+                    tickPoint.y += m_plot.y;
+                    tickPoint.x += m_plot.x;
+
+                    wxPoint tickStart, tickEnd;
+
+                    if (iter->GetAxisType() == Axis::Horizontal)
+                    {
+                        tickStart = tickPoint;
+                        tickEnd.x = tickPoint.x;
+
+                        if (iter->TickSide == Axis::BelowOrLeft)
+                            tickEnd.y = tickPoint.y + 10;
+                        else
+                            tickEnd.y = tickPoint.y - 10;
+                    }
+                    else if (iter->GetAxisType() == Axis::Vertical)
+                    {
+                        tickStart = tickPoint;
+                        tickEnd.y = tickPoint.y;
+
+                        if (iter->TickSide == Axis::BelowOrLeft)
+                            tickEnd.x = tickPoint.x - 10;
+                        else
+                            tickEnd.x = tickPoint.x + 10;
+                    }
+
+                    dc.DrawLine(tickStart, tickEnd);
+
+                    t_start += iter->TickRange;
+                }
             }
         }
     }

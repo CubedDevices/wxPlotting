@@ -57,6 +57,7 @@ public:
     wxColor  TickColor;
     LabelSide TickSide = BelowOrLeft;
     double   TickRange;
+    wxFont   TickFont = wxFont(wxFontInfo(8).Family(wxFONTFAMILY_MODERN));
     
     wxString Label;
     bool     LabelVisible = true;
@@ -103,6 +104,14 @@ public:
 
     double GetLocation() const {
         return m_location;
+    }
+
+    double ConvertValue(double realValue)
+    {
+        // find out location on axis
+        double axisPoint = ((realValue - m_rangeStart) / ( m_rangeEnd - m_rangeStart));
+        double plotPloint = m_start + ((axisPoint) * (m_end - m_start));
+        return plotPloint;
     }
 
 protected:
