@@ -72,7 +72,7 @@ wxPlottingFrame::wxPlottingFrame()
     timeAxis.LabelSide = Axis::BelowOrLeft;
     timeAxis.SetLocation(0.0);
     timeAxis.SetPosition(0.0, 1.0);
-    timeAxis.SetRange(0, 100); // 0 to 100 seconds
+    timeAxis.SetRange(0, 256); // 0 to 100 seconds
     timeAxis.TickRange = 10; // tick every 10 seconds
     timeAxis.TickColor = wxColor("Green");
     timeAxis.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
@@ -134,12 +134,12 @@ wxPlottingFrame::wxPlottingFrame()
 
     Axis d0("D0", Axis::Vertical);
     d0.Visible = true;
-    d0.Foreground = wxColor("Brown");
+    d0.Foreground = wxColor("White");
     d0.GridVisible = false;
     d0.GridStyle = wxPENSTYLE_SOLID;
-    d0.GridColor = wxColor("Brown").ChangeLightness(150);
+    d0.GridColor = wxColor("White").ChangeLightness(150);
     d0.Label = "D0";
-    d0.LabelColor = wxColor("Brown");
+    d0.LabelColor = wxColor("White");
     d0.LabelVisible = true;
     d0.LabelSide = Axis::BelowOrLeft;
     d0.SetLocation(0);
@@ -202,12 +202,12 @@ wxPlottingFrame::wxPlottingFrame()
 
     Axis d4("D4", Axis::Vertical);
     d4.Visible = true;
-    d4.Foreground = wxColor("Green");
+    d4.Foreground = wxColor("Cyan");
     d4.GridVisible = false;
     d4.GridStyle = wxPENSTYLE_SOLID;
-    d4.GridColor = wxColor("Green").ChangeLightness(150);
+    d4.GridColor = wxColor("Cyan").ChangeLightness(150);
     d4.Label = "D4";
-    d4.LabelColor = wxColor("Green");
+    d4.LabelColor = wxColor("Cyan");
     d4.LabelVisible = true;
     d4.LabelSide = Axis::BelowOrLeft;
     d4.SetLocation(0);
@@ -236,12 +236,12 @@ wxPlottingFrame::wxPlottingFrame()
 
     Axis d6("D6", Axis::Vertical);
     d6.Visible = true;
-    d6.Foreground = wxColor("Violet");
+    d6.Foreground = wxColor("Magenta");
     d6.GridVisible = false;
     d6.GridStyle = wxPENSTYLE_SOLID;
-    d6.GridColor = wxColor("Violet").ChangeLightness(150);
+    d6.GridColor = wxColor("Magenta").ChangeLightness(150);
     d6.Label = "D6";
-    d6.LabelColor = wxColor("Violet");
+    d6.LabelColor = wxColor("Magenta");
     d6.LabelVisible = true;
     d6.LabelSide = Axis::BelowOrLeft;
     d6.SetLocation(0);
@@ -281,7 +281,7 @@ wxPlottingFrame::wxPlottingFrame()
     {
         Series::Points pts;
         pts.reserve(100);
-        for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
         {
             double s = sin(timestamp * M_PI / 22.5) * 3.3;
             pts.push_back(wxRealPoint(timestamp, s));
@@ -301,7 +301,7 @@ wxPlottingFrame::wxPlottingFrame()
     {
         Series::Points pts;
         pts.reserve(100);
-        for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
         {
             double s = cos(timestamp * M_PI / 22.5) * 3.3;
             pts.push_back(wxRealPoint(timestamp, s));
@@ -322,7 +322,7 @@ wxPlottingFrame::wxPlottingFrame()
     {
         Series::Points pts;
         pts.reserve(100);
-        for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
         {
             int v = (int)timestamp;
             int v_b = (v & 0x01);
@@ -337,14 +337,14 @@ wxPlottingFrame::wxPlottingFrame()
     Series d1_series("D1", Series::Doubles);
     d1_series.HorizontalAxis = wxString("Time");
     d1_series.VerticalAxis = wxString("D1");
-    d1_series.Foreground = wxString("White");
+    d1_series.Foreground = wxString("Red");
     d1_series.Visible = true;
     d1_series.RenderStyle = SeriesRenderStyle::StairStep;
 
     {
         Series::Points pts;
         pts.reserve(100);
-        for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
         {
             int v = (int)timestamp;
             int v_b = (v & 0x02) >> 1;
@@ -359,14 +359,14 @@ wxPlottingFrame::wxPlottingFrame()
     Series d2_series("D2", Series::Doubles);
     d2_series.HorizontalAxis = wxString("Time");
     d2_series.VerticalAxis = wxString("D2");
-    d2_series.Foreground = wxString("White");
+    d2_series.Foreground = wxString("Orange");
     d2_series.Visible = true;
     d2_series.RenderStyle = SeriesRenderStyle::StairStep;
 
     {
         Series::Points pts;
         pts.reserve(100);
-        for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
         {
             int v = (int)timestamp;
             int v_b = (v & 0x04) >> 2;
@@ -381,14 +381,14 @@ wxPlottingFrame::wxPlottingFrame()
     Series d3_series("D3", Series::Doubles);
     d3_series.HorizontalAxis = wxString("Time");
     d3_series.VerticalAxis = wxString("D3");
-    d3_series.Foreground = wxString("White");
+    d3_series.Foreground = wxString("Yellow");
     d3_series.Visible = true;
     d3_series.RenderStyle = SeriesRenderStyle::StairStep;
 
     {
         Series::Points pts;
         pts.reserve(100);
-        for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
         {
             int v = (int)timestamp;
             int v_b = (v & 0x08) >> 3;
@@ -403,14 +403,14 @@ wxPlottingFrame::wxPlottingFrame()
     Series d4_series("D4", Series::Doubles);
     d4_series.HorizontalAxis = wxString("Time");
     d4_series.VerticalAxis = wxString("D4");
-    d4_series.Foreground = wxString("White");
+    d4_series.Foreground = wxString("Cyan");
     d4_series.Visible = true;
     d4_series.RenderStyle = SeriesRenderStyle::StairStep;
 
     {
         Series::Points pts;
         pts.reserve(100);
-        for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
         {
             int v = (int)timestamp;
             int v_b = (v & 0x10) >> 4;
@@ -425,14 +425,14 @@ wxPlottingFrame::wxPlottingFrame()
     Series d5_series("D5", Series::Doubles);
     d5_series.HorizontalAxis = wxString("Time");
     d5_series.VerticalAxis = wxString("D5");
-    d5_series.Foreground = wxString("White");
+    d5_series.Foreground = wxString("Blue");
     d5_series.Visible = true;
     d5_series.RenderStyle = SeriesRenderStyle::StairStep;
 
     {
         Series::Points pts;
         pts.reserve(100);
-        for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
         {
             int v = (int)timestamp;
             int v_b = (v & 0x20) >> 5;
@@ -443,6 +443,50 @@ wxPlottingFrame::wxPlottingFrame()
     }
 
     m_plot->AddSeries(d5_series);
+
+    Series d6_series("D6", Series::Doubles);
+    d6_series.HorizontalAxis = wxString("Time");
+    d6_series.VerticalAxis = wxString("D6");
+    d6_series.Foreground = wxString("Magenta");
+    d6_series.Visible = true;
+    d6_series.RenderStyle = SeriesRenderStyle::StairStep;
+
+    {
+        Series::Points pts;
+        pts.reserve(100);
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
+        {
+            int v = (int)timestamp;
+            int v_b = (v & 0x40) >> 6;
+
+            pts.push_back(wxRealPoint(timestamp, (double)v_b));
+        }
+        d6_series.SetPoints(std::move(pts));
+    }
+
+    m_plot->AddSeries(d6_series);
+
+    Series d7_series("D7", Series::Doubles);
+    d7_series.HorizontalAxis = wxString("Time");
+    d7_series.VerticalAxis = wxString("D7");
+    d7_series.Foreground = wxString("Grey");
+    d7_series.Visible = true;
+    d7_series.RenderStyle = SeriesRenderStyle::StairStep;
+
+    {
+        Series::Points pts;
+        pts.reserve(100);
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
+        {
+            int v = (int)timestamp;
+            int v_b = (v & 0x80) >> 7;
+
+            pts.push_back(wxRealPoint(timestamp, (double)v_b));
+        }
+        d7_series.SetPoints(std::move(pts));
+    }
+
+    m_plot->AddSeries(d7_series);
 
     m_plot->UpdatePlot();
 
