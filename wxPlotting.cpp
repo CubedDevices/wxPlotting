@@ -108,6 +108,7 @@ void wxPlotting::CreateDefaultPlot()
     test1.SetRange(0, 100.0); // 0 to 100 seconds
     test1.TickRange = 10.0; // tick every 10 seconds
     test1.TickColor = wxColor("Green");
+    test1.TickFont = wxFont(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
     test1.TickVisible = true;
     test1.TickLabelVisible = true;
     test1.TickSide = Axis::BelowOrLeft;
@@ -118,12 +119,14 @@ void wxPlotting::CreateDefaultPlot()
     test2.LabelVisible = true;
     test2.Width = 2;
     test2.LabelColor = wxColor("Magenta");
+    test2.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
     test2.LabelSide = Axis::BelowOrLeft;
     test2.SetLocation(0.0);
     test2.SetPosition(0.0, 0.47);
     test2.SetRange(-3.3, 3.3);   // += 3.3v
     test2.TickRange = 1.0;      // 1v ticks
     test2.TickColor = (wxColor("Magenta"));
+    test2.TickFont = wxFont(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
     test2.TickVisible = true;
     test2.TickLabelVisible = true;
     test2.TickSide = Axis::BelowOrLeft;
@@ -134,12 +137,14 @@ void wxPlotting::CreateDefaultPlot()
     test3.LabelVisible = true;
     test3.Width = 2;
     test3.LabelColor = wxColor("Cyan");
+    test3.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
     test3.LabelSide = Axis::BelowOrLeft;
     test3.SetLocation(0.0);
     test3.SetPosition(0.53, 1.0);
     test3.SetRange(-3.3, 3.3);   // += 3.3v
     test3.TickRange = 1.0; // 1v ticks
     test3.TickColor = (wxColor("Cyan"));
+    test3.TickFont = wxFont(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
     test3.TickVisible = true;
     test3.TickLabelVisible = true;
     test3.TickSide = Axis::BelowOrLeft;
@@ -172,18 +177,48 @@ void wxPlotting::UpdatePlot()
 
 void wxPlotting::SetMargin(int value)
 {
-    if ( m_margin == value )
+    SetMargins(value, value, value, value);
+}
+
+void wxPlotting::SetMargins(int left, int right, int top, int bottom)
+{
+    left   = wxMax(left, 0);
+    right  = wxMax(right, 0);
+    top    = wxMax(top, 0);
+    bottom = wxMax(bottom, 0);
+
+    if ( left == m_marginLeft && right == m_marginRight &&
+         top == m_marginTop && bottom == m_marginBottom )
         return;
 
-    m_margin = value;
+    m_marginLeft   = left;
+    m_marginRight  = right;
+    m_marginTop    = top;
+    m_marginBottom = bottom;
+
     RecreateBuffer();
     Render();
     Refresh(false);
 }
 
-int wxPlotting::GetMargin() const
+void wxPlotting::SetMarginLeft(int margin)
 {
-    return m_margin;
+    SetMargins(margin, m_marginRight, m_marginTop, m_marginBottom);
+}
+
+void wxPlotting::SetMarginRight(int margin)
+{
+    SetMargins(m_marginLeft, margin, m_marginTop, m_marginBottom);
+}
+
+void wxPlotting::SetMarginTop(int margin)
+{
+    SetMargins(m_marginLeft, m_marginRight, margin, m_marginBottom);
+}
+
+void wxPlotting::SetMarginBottom(int margin)
+{
+    SetMargins(m_marginLeft, m_marginRight, m_marginTop, margin);
 }
 
 void wxPlotting::SetMinDrawingSize(const wxSize& size)
@@ -255,16 +290,28 @@ bool wxPlotting::SyncDrawingSizeToClient()
 void wxPlotting::RecreateBuffer()
 {
     const wxSize size = m_drawingSize;
-    if ( size.x <= 2 * m_margin || size.y <= 2 * m_margin )
+    if ( size.x <= m_marginLeft + m_marginRight ||
+         size.y <= m_marginTop + m_marginBottom )
         return;
 
-    if ( !m_buffer.IsOk() || m_buffer.GetSize() != size )
-    {
-        m_plotSize = wxSize(size.x - (2 * m_margin),
-                              size.y - (2 * m_margin));
-        m_plot = wxRect(wxPoint(m_margin, m_margin), m_plotSize);
+    // Plot rectangle always tracks margins, even when the bitmap size is unchanged.
+    m_plotSize = wxSize(size.x - m_marginLeft - m_marginRight,
+                        size.y - m_marginTop - m_marginBottom);
+    m_plot = wxRect(wxPoint(m_marginLeft, m_marginTop), m_plotSize);
 
-        m_buffer = wxBitmap(size);
+    // Use the window content scale so MemoryDC text matches on-screen DPI.
+    // Without this, fonts are measured/drawn at 96 DPI and look undersized
+    // on high-DPI displays while the rest of the UI is scaled up.
+    const double scale = GetContentScaleFactor();
+    const bool needNewBitmap =
+        !m_buffer.IsOk() ||
+        m_buffer.GetLogicalSize() != size ||
+        !wxIsSameDouble(m_buffer.GetScaleFactor(), scale);
+
+    if ( needNewBitmap )
+    {
+        m_buffer = wxBitmap();
+        m_buffer.CreateScaled(size.x, size.y, wxBITMAP_SCREEN_DEPTH, scale);
     }
 }
 
@@ -275,12 +322,13 @@ void wxPlotting::Render()
         return;
 
     wxMemoryDC memDC;
+    memDC.SelectObject(m_buffer);
 
     memDC.SetBackground(wxBrush(GetBackgroundColour()));
     memDC.Clear();
 
-    memDC.SelectObject(m_buffer);
-    DrawPlot(memDC, m_buffer.GetSize());
+    // Logical size matches the drawing coordinate system (not physical pixels).
+    DrawPlot(memDC, m_buffer.GetLogicalSize());
     memDC.SelectObject(wxNullBitmap);
 }
 

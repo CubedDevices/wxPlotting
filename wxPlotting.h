@@ -58,8 +58,22 @@ public:
     // Rebuild the off-screen buffer and refresh the control.
     void UpdatePlot();
 
+    // Plot margins (space outside m_plot for axis titles, ticks, labels).
+    // SetMargin(n) sets all four sides equal; use SetMargins / per-side
+    // setters when left/bottom need more room than top/right.
     void SetMargin(int margin);
-    int  GetMargin() const;
+    void SetMargins(int left, int right, int top, int bottom);
+    void SetMarginLeft(int margin);
+    void SetMarginRight(int margin);
+    void SetMarginTop(int margin);
+    void SetMarginBottom(int margin);
+
+    int  GetMarginLeft() const   { return m_marginLeft; }
+    int  GetMarginRight() const  { return m_marginRight; }
+    int  GetMarginTop() const    { return m_marginTop; }
+    int  GetMarginBottom() const { return m_marginBottom; }
+    // Backward-compatible: returns left margin (prefer per-side getters).
+    int  GetMargin() const       { return m_marginLeft; }
 
     // Minimum drawing size.  Actual canvas is max(client, min) per axis.
     // Scrollbars appear only when the client is smaller than this minimum.
@@ -111,7 +125,12 @@ private:
     wxBitmap m_buffer;
     wxSize   m_plotSize;
     wxRect   m_plot;
-    int m_margin = 50;
+
+    // Per-side margins (defaults leave extra room for left/bottom labels).
+    int m_marginLeft   = 80;
+    int m_marginRight  = 40;
+    int m_marginTop    = 40;
+    int m_marginBottom = 70;
 
     // Floor for the canvas; scrollbars only when client < this.
     wxSize m_minDrawingSize;

@@ -57,7 +57,9 @@ public:
     wxColor  TickColor;
     LabelSide TickSide = BelowOrLeft;
     double   TickRange = 1.0;
-    wxFont   TickFont = wxFont(wxFontInfo(8).Family(wxFONTFAMILY_MODERN));
+    // Point size is logical; drawing scales fonts to the window DPI so they
+    // stay readable on high-DPI displays (see wxPlotting::DrawPlot).
+    wxFont   TickFont = wxFont(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
     // When true, draw the numeric value at each tick (always upright text).
     bool     TickLabelVisible = false;
 
@@ -65,7 +67,7 @@ public:
     bool     LabelVisible = true;
     wxColor  LabelColor;
     LabelSide LabelSide = BelowOrLeft;
-    wxFont   LabelFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
+    wxFont   LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN));
 
     bool     GridVisible = true;
     wxColor  GridColor;
