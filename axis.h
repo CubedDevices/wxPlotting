@@ -57,9 +57,11 @@ public:
     wxColor  TickColor;
     LabelSide TickSide = BelowOrLeft;
     double   TickRange = 1.0;
+
     // Point size is logical; drawing scales fonts to the window DPI so they
     // stay readable on high-DPI displays (see wxPlotting::DrawPlot).
     wxFont   TickFont = wxFont(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
+    
     // When true, draw the numeric value at each tick (always upright text).
     bool     TickLabelVisible = false;
 

@@ -108,10 +108,12 @@ void wxPlotting::CreateDefaultPlot()
     test1.SetRange(0, 100.0); // 0 to 100 seconds
     test1.TickRange = 10.0; // tick every 10 seconds
     test1.TickColor = wxColor("Green");
-    test1.TickFont = wxFont(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
+    test1.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
     test1.TickVisible = true;
     test1.TickLabelVisible = true;
     test1.TickSide = Axis::BelowOrLeft;
+    test1.GridVisible = true;
+    test1.GridColor = wxColor("White");
 
     Axis test2("Signal1", Axis::Vertical);
     test2.Foreground = (wxColor("Magenta"));
@@ -126,10 +128,12 @@ void wxPlotting::CreateDefaultPlot()
     test2.SetRange(-3.3, 3.3);   // += 3.3v
     test2.TickRange = 1.0;      // 1v ticks
     test2.TickColor = (wxColor("Magenta"));
-    test2.TickFont = wxFont(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
+    test2.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
     test2.TickVisible = true;
     test2.TickLabelVisible = true;
     test2.TickSide = Axis::BelowOrLeft;
+    test2.GridVisible = true;
+    test2.GridColor = wxColor("White");
 
     Axis test3("Signal2", Axis::Vertical);
     test3.Foreground = (wxColor("Cyan"));
@@ -144,10 +148,12 @@ void wxPlotting::CreateDefaultPlot()
     test3.SetRange(-3.3, 3.3);   // += 3.3v
     test3.TickRange = 1.0; // 1v ticks
     test3.TickColor = (wxColor("Cyan"));
-    test3.TickFont = wxFont(wxFontInfo(10).Family(wxFONTFAMILY_MODERN));
+    test3.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
     test3.TickVisible = true;
     test3.TickLabelVisible = true;
     test3.TickSide = Axis::BelowOrLeft;
+    test3.GridVisible = true;
+    test3.GridColor = wxColor("White");
 
     m_axisList.push_back(test1);
     m_axisList.push_back(test2);
@@ -514,7 +520,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
             }
         }
 
-        if (iter->TickVisible || iter->TickLabelVisible)
+        if (iter->TickVisible || iter->TickLabelVisible || iter->GridVisible)
         {
             double rangeStart = iter->GetRangeStart();
             double rangeEnd = iter->GetRangeEnd();
@@ -522,8 +528,8 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
             double rangeDist = rangeEnd - rangeStart;
             if (iter->TickRange > 0.0 && iter->TickRange < rangeDist)
             {
+                wxPen gridColor(iter->GridColor);
                 wxPen penTick(iter->TickColor);
-                dc.SetPen(penTick);
 
                 // First tick at or above rangeStart on the TickRange grid.
                 double t_start = ceil(rangeStart / iter->TickRange) * iter->TickRange;
@@ -553,6 +559,25 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 
                     tickPoint.y += m_plot.y;
                     tickPoint.x += m_plot.x;
+
+                    wxPoint gridStart = tickPoint;
+                    wxPoint gridEnd = tickPoint;
+
+                    if (iter->GridVisible)
+                    {
+                        if (iter->GetAxisType() == Axis::Horizontal)
+                        {
+                            gridEnd.y = m_plot.y;
+                        }
+                        else if (iter->GetAxisType() == Axis::Vertical)
+                        {
+                            gridEnd.x = m_plot.x + m_plot.width;
+                        }
+
+                        dc.SetPen(gridColor);
+                        dc.DrawLine(gridStart, gridEnd);
+
+                    }
 
                     const int tickLen = iter->TickVisible ? kTickLength : 0;
 
