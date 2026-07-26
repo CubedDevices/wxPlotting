@@ -105,8 +105,8 @@ void wxPlotting::CreateDefaultPlot()
     test1.LabelSide = Axis::BelowOrLeft;
     test1.SetLocation(0.0);
     test1.SetPosition(0.0, 1.0);
-    test1.SetRange(0, 100.0); // 0 to 100 seconds
-    test1.TickRange = 10.0; // tick every 10 seconds
+    test1.SetRange(0, 100); // 0 to 100 seconds
+    test1.TickRange = 10; // tick every 10 seconds
     test1.TickColor = wxColor("Green");
     test1.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
     test1.TickVisible = true;
@@ -127,7 +127,7 @@ void wxPlotting::CreateDefaultPlot()
     test2.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
     test2.LabelSide = Axis::BelowOrLeft;
     test2.SetLocation(0.0);
-    test2.SetPosition(0.0, 0.47);
+    test2.SetPosition(0.0, 0.32);
     test2.SetRange(-3.3, 3.3);   // += 3.3v
     test2.TickRange = 1.0;      // 1v ticks
     test2.TickColor = wxColor("Magenta");
@@ -150,7 +150,7 @@ void wxPlotting::CreateDefaultPlot()
     test3.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
     test3.LabelSide = Axis::BelowOrLeft;
     test3.SetLocation(0.0);
-    test3.SetPosition(0.53, 1.0);
+    test3.SetPosition(0.34, 0.65);
     test3.SetRange(-3.3, 3.3);   // += 3.3v
     test3.TickRange = 1.0; // 1v ticks
     test3.TickColor = (wxColor("Cyan"));
@@ -164,21 +164,75 @@ void wxPlotting::CreateDefaultPlot()
     test3.GridStyle = wxPENSTYLE_DOT_DASH;
     test3.GridWidth = 1;
 
+    Axis test4("Signal3", Axis::Vertical);
+    test4.Foreground = (wxColor("Yellow"));
+    test4.Visible = true;
+    test4.LabelVisible = true;
+    test4.Width = 3;
+    test4.LabelColor = wxColor("Yellow");
+    test4.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
+    test4.LabelSide = Axis::BelowOrLeft;
+    test4.SetLocation(0.0);
+    test4.SetPosition(0.67, 1.0);
+    test4.SetRange(-3.3, 3.3);   // += 3.3v
+    test4.TickRange = 1.0; // 1v ticks
+    test4.TickColor = (wxColor("Yellow"));
+    test4.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
+    test4.TickVisible = true;
+    test4.TickLabelVisible = true;
+    test4.TickLabelFormat = "%.1f"; // one decimal place
+    test4.TickSide = Axis::BelowOrLeft;
+    test4.GridVisible = true;
+    test4.GridColor = wxColor("Yellow").ChangeLightness(50);
+    test4.GridStyle = wxPENSTYLE_DOT_DASH;
+    test4.GridWidth = 1;
+
     m_axisList.push_back(test1);
     m_axisList.push_back(test2);
     m_axisList.push_back(test3);
+    m_axisList.push_back(test4);
 
     Series series1("Series1", Series::Doubles);
     series1.HorizontalAxis = wxString("Time");
     series1.VerticalAxis = wxString("Signal1");
+    series1.Foreground = wxString("White");
     series1.Visible = true;
 
-    for (double i = -3.3; i < 3.3; i += 0.1)
+    for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
     {
-        series1.Data.push_back(wxRealPoint(i, i));
+        double s = sin(timestamp * M_PI / 22.5) * 3.3;
+        series1.Data.push_back(wxRealPoint(timestamp, s));
     }
 
     m_seriesList.push_back(series1);
+
+    Series series2("Series2", Series::Doubles);
+    series2.HorizontalAxis = wxString("Time");
+    series2.VerticalAxis = wxString("Signal2");
+    series2.Foreground = wxString("White");
+    series2.Visible = true;
+
+    for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+    {
+        double s = cos(timestamp * M_PI / 22.5) * 3.3;
+        series2.Data.push_back(wxRealPoint(timestamp, s));
+    }
+
+    m_seriesList.push_back(series2);
+
+    Series series3("Series3", Series::Doubles);
+    series3.HorizontalAxis = wxString("Time");
+    series3.VerticalAxis = wxString("Signal3");
+    series3.Foreground = wxString("White");
+    series3.Visible = true;
+
+    for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+    {
+        double s = (cos(timestamp * M_PI / 22.5) + sin(timestamp * M_PI / 22.5)) * 3.3;
+        series3.Data.push_back(wxRealPoint(timestamp, s));
+    }
+
+    m_seriesList.push_back(series3);
 
 }
 
@@ -694,7 +748,45 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
         if (!foundVertical || !foundHorizontal)
             continue;
 
+        wxPoint lastPoint;
+        wxPoint currentPoint;
+        bool first = true;
 
+        wxPen seriesPen(iter->Foreground);
+        dc.SetPen(seriesPen);
+
+        for (Series::Points::iterator ptIter = iter->Data.begin();
+            ptIter != iter->Data.end();
+            ++ptIter
+            )
+        {
+            if (ptIter->x < horzAxis->GetRangeStart() || (ptIter->x > horzAxis->GetRangeEnd()))
+            {
+                first = true;
+                continue;
+            }
+            if (ptIter->y < vertAxis->GetRangeStart() || (ptIter->y > vertAxis->GetRangeEnd()))
+            {
+                first = true;
+                continue;
+            }
+
+            double x = horzAxis->ConvertValue(ptIter->x);
+            double y = vertAxis->ConvertValue(ptIter->y);
+            currentPoint.x = (x / 1.0) * m_plot.GetWidth();
+            currentPoint.y = m_plot.GetHeight() - (y * m_plot.GetHeight());
+
+            currentPoint.y += m_plot.y;
+            currentPoint.x += m_plot.x;
+
+            if (!first)
+                dc.DrawLine(lastPoint, currentPoint);
+            else
+                first = false;
+
+            lastPoint = currentPoint;
+
+        }
 
     }
 
