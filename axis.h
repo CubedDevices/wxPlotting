@@ -68,6 +68,9 @@ public:
     
     // When true, draw the numeric value at each tick (always upright text).
     bool     TickLabelVisible = false;
+    // printf-style format for tick values (one floating argument).
+    // Examples: "%g", "%.0f", "%.2f", "%+0.1f".
+    wxString TickLabelFormat = "%g";
 
     wxString Label;
     bool     LabelVisible = true;

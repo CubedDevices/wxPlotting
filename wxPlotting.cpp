@@ -111,6 +111,7 @@ void wxPlotting::CreateDefaultPlot()
     test1.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
     test1.TickVisible = true;
     test1.TickLabelVisible = true;
+    test1.TickLabelFormat = "%.0f"; // integer seconds
     test1.TickSide = Axis::BelowOrLeft;
     test1.GridVisible = true;
     test1.GridColor = wxColor("Grey");
@@ -133,6 +134,7 @@ void wxPlotting::CreateDefaultPlot()
     test2.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
     test2.TickVisible = true;
     test2.TickLabelVisible = true;
+    test2.TickLabelFormat = "%.1f"; // one decimal place
     test2.TickSide = Axis::BelowOrLeft;
     test2.GridVisible = true;
     test2.GridColor = wxColor("Magenta").ChangeLightness(50);
@@ -155,6 +157,7 @@ void wxPlotting::CreateDefaultPlot()
     test3.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
     test3.TickVisible = true;
     test3.TickLabelVisible = true;
+    test3.TickLabelFormat = "%.1f"; // one decimal place
     test3.TickSide = Axis::BelowOrLeft;
     test3.GridVisible = true;
     test3.GridColor = wxColor("Cyan").ChangeLightness(50);
@@ -354,9 +357,12 @@ namespace
     const int kTickLength = 10;
     const int kLabelPad = 4;
 
-    wxString FormatTickValue(double value)
+    wxString FormatTickValue(const Axis& axis, double value)
     {
-        return wxString::Format("%g", value);
+        const wxString& fmt = axis.TickLabelFormat.IsEmpty()
+            ? wxString("%g")
+            : axis.TickLabelFormat;
+        return wxString::Format(fmt, value);
     }
 
     // Extra clearance beyond the axis pen for the axis title, so it sits
@@ -382,8 +388,8 @@ namespace
             else
             {
                 // Tick values are upright left/right of the axis; reserve widest value.
-                const wxString s0 = FormatTickValue(axis.GetRangeStart());
-                const wxString s1 = FormatTickValue(axis.GetRangeEnd());
+                const wxString s0 = FormatTickValue(axis, axis.GetRangeStart());
+                const wxString s1 = FormatTickValue(axis, axis.GetRangeEnd());
                 const int w0 = dc.GetTextExtent(s0).x;
                 const int w1 = dc.GetTextExtent(s1).x;
                 clear += wxMax(w0, w1) + kLabelPad;
@@ -617,7 +623,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
                         dc.SetFont(iter->TickFont);
                         dc.SetTextForeground(iter->TickColor);
 
-                        const wxString text = FormatTickValue(t_start);
+                        const wxString text = FormatTickValue(*iter, t_start);
                         const wxSize ts = dc.GetTextExtent(text);
 
                         int tx = 0;
