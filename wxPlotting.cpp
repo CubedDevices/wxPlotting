@@ -579,7 +579,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
             double rangeEnd = iter->GetRangeEnd();
 
             double rangeDist = rangeEnd - rangeStart;
-            if (iter->TickRange > 0.0 && iter->TickRange < rangeDist)
+            if (iter->TickRange >= 0.0 && iter->TickRange <= rangeDist)
             {
                 wxPen penGrid(iter->GridColor, iter->GridWidth, iter->GridStyle);
                 wxPen penTick(iter->TickColor);
@@ -695,6 +695,11 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
         }
     }
 
+    DrawSeries(dc, size);
+}
+
+void wxPlotting::DrawSeries(wxMemoryDC& dc, const wxSize& size)
+{
     for (auto iter = m_seriesList.begin();
         iter != m_seriesList.end();
         ++iter)
@@ -772,21 +777,6 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
         // unique_ptr destroys the renderer here.
     }
 
-    /*
-    dc.SetPen(wxPen(GetForegroundColour()));
-    dc.SetTextForeground(GetForegroundColour());
-    dc.SetFont(GetFont());
-
-    const wxString label = "wxPlotting (MemoryDC template)";
-    const wxSize textSize = dc.GetTextExtent(label);
-    const int x = (size.x - textSize.x) / 2;
-    const int y = (size.y - textSize.y) / 2;
-    dc.DrawText(label, x > 0 ? x : 0, y > 0 ? y : 0);
-
-    // Simple border so the control bounds are obvious during testing.
-    dc.SetBrush(*wxTRANSPARENT_BRUSH);
-    dc.DrawRectangle(0, 0, size.x, size.y);
-    */
 }
 
 // ----------------------------------------------------------------------------
