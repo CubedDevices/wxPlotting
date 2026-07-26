@@ -14,6 +14,8 @@
     #include "wx/frame.h"
 #endif
 
+#include "plothit.h"
+
 class wxPlotting;
 
 /**
@@ -42,7 +44,7 @@ wxDECLARE_APP(wxPlottingApp);
  * @brief Main window that embeds a @ref wxPlotting control for interactive testing.
  *
  * @details Constructs sample axes and series, hosts the control in a sizer,
- *          and provides Exit / About commands.
+ *          demonstrates hit-testing and vertical-axis band dragging.
  */
 class wxPlottingFrame : public wxFrame
 {
@@ -64,11 +66,53 @@ private:
     void OnAbout(wxCommandEvent& event);
 
     /**
-     * @brief Mouse move over the plot: update status bar from hit-test.
+     * @brief Mouse move: status bar hit-test and vertical-axis drag updates.
      */
     void OnPlotMotion(wxMouseEvent& event);
 
+    /**
+     * @brief Left button down: begin vertical-axis drag if hit-test finds one.
+     */
+    void OnPlotLeftDown(wxMouseEvent& event);
+
+    /**
+     * @brief Left button up: end axis drag.
+     */
+    void OnPlotLeftUp(wxMouseEvent& event);
+
+    /**
+     * @brief Capture lost: end axis drag without a matching mouse-up.
+     */
+    void OnPlotCaptureLost(wxMouseCaptureLostEvent& event);
+
+    /**
+     * @brief Stop an in-progress axis drag and release mouse capture if held.
+     */
+    void EndAxisDrag();
+
+    /**
+     * @brief Client position → unscrolled canvas Y and plot height for drag math.
+     */
+    bool ClientToPlotY(const wxPoint& clientPos, int& canvasY, int& plotHeight) const;
+
+    /**
+     * @brief Pick the first vertical axis name listed in a hit result (if any).
+     */
+    wxString VerticalAxisFromHit(const PlotHitResult& hit) const;
+
+    /**
+     * @brief Refresh status text from a hit-test result (and optional drag note).
+     */
+    void UpdateHitStatus(const PlotHitResult& hit, bool dragging);
+
     wxPlotting* m_plot;  ///< Owned plot control (child of this frame).
+
+    // Vertical-axis drag state (demo only; horizontal axes are not dragged).
+    bool     m_draggingAxis = false;
+    wxString m_dragAxisName;
+    double   m_dragOrigStart = 0.0;
+    double   m_dragOrigEnd = 0.0;
+    int      m_dragStartCanvasY = 0;
 
     wxDECLARE_EVENT_TABLE();
 };

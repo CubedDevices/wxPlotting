@@ -492,8 +492,11 @@ wxPlottingFrame::wxPlottingFrame()
 
     m_plot->UpdatePlot();
 
-    // Hit-test demo: hover updates the status bar.
+    // Interaction demo: hit-test hover + vertical axis band drag.
     m_plot->Bind(wxEVT_MOTION, &wxPlottingFrame::OnPlotMotion, this);
+    m_plot->Bind(wxEVT_LEFT_DOWN, &wxPlottingFrame::OnPlotLeftDown, this);
+    m_plot->Bind(wxEVT_LEFT_UP, &wxPlottingFrame::OnPlotLeftUp, this);
+    m_plot->Bind(wxEVT_MOUSE_CAPTURE_LOST, &wxPlottingFrame::OnPlotCaptureLost, this);
 
     wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
     sizer->Add(m_plot, 1, wxEXPAND | wxALL, 0);
@@ -513,20 +516,46 @@ void wxPlottingFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
         "wxPlotting test application\n\n"
         "Hosts an owner-drawn wxPlotting control that renders "
         "via an off-screen wxMemoryDC.\n\n"
-        "Move the mouse over series and axes to see hit-test results "
-        "in the status bar.",
+        "• Hover to see hit-test results in the status bar.\n"
+        "• Drag a vertical axis band (not the time axis) to move it "
+        "while keeping its height (start/end span) fixed.",
         "About wxPlotting",
         wxOK | wxICON_INFORMATION,
         this);
 }
 
-void wxPlottingFrame::OnPlotMotion(wxMouseEvent& event)
+bool wxPlottingFrame::ClientToPlotY(const wxPoint& clientPos,
+                                    int& canvasY,
+                                    int& plotHeight) const
 {
     if ( !m_plot )
-        return;
+        return false;
 
-    const PlotHitResult hit = m_plot->HitTest(event.GetPosition());
+    int canvasX = 0;
+    m_plot->CalcUnscrolledPosition(clientPos.x, clientPos.y, &canvasX, &canvasY);
 
+    plotHeight = m_plot->GetDrawingHeight()
+               - m_plot->GetMarginTop()
+               - m_plot->GetMarginBottom();
+    return plotHeight > 0;
+}
+
+wxString wxPlottingFrame::VerticalAxisFromHit(const PlotHitResult& hit) const
+{
+    if ( !m_plot )
+        return wxString();
+
+    for ( const wxString& name : hit.axes )
+    {
+        const Axis* axis = m_plot->GetAxis(name);
+        if ( axis && axis->GetAxisType() == Axis::Vertical )
+            return name;
+    }
+    return wxString();
+}
+
+void wxPlottingFrame::UpdateHitStatus(const PlotHitResult& hit, bool dragging)
+{
     wxString axesText;
     for ( size_t i = 0; i < hit.axes.size(); ++i )
     {
@@ -537,10 +566,14 @@ void wxPlottingFrame::OnPlotMotion(wxMouseEvent& event)
     if ( axesText.empty() )
         axesText = wxT("—");
 
+    wxString prefix;
+    if ( dragging )
+        prefix = wxString::Format("Dragging vertical axis \"%s\" | ", m_dragAxisName);
+
     switch ( hit.kind )
     {
         case PlotHitKind::Series:
-            SetStatusText(wxString::Format(
+            SetStatusText(prefix + wxString::Format(
                 "Series: %s  axes: [%s]  sample[%lu]=(%.4g, %.4g)  d=%.1fpx",
                 hit.name,
                 axesText,
@@ -549,16 +582,166 @@ void wxPlottingFrame::OnPlotMotion(wxMouseEvent& event)
                 hit.distancePx));
             break;
         case PlotHitKind::Axis:
-            SetStatusText(wxString::Format("Axes: [%s]", axesText));
+            SetStatusText(prefix + wxString::Format("Axes: [%s]", axesText));
             break;
         case PlotHitKind::PlotArea:
-            SetStatusText("Plot area");
+            SetStatusText(prefix + wxT("Plot area"));
             break;
         case PlotHitKind::None:
         default:
-            SetStatusText("—");
+            SetStatusText(prefix.IsEmpty() ? wxString(wxT("—")) : prefix);
             break;
     }
+}
 
+void wxPlottingFrame::EndAxisDrag()
+{
+    if ( !m_draggingAxis )
+        return;
+
+    m_draggingAxis = false;
+    m_dragAxisName.clear();
+
+    if ( m_plot && m_plot->HasCapture() )
+        m_plot->ReleaseMouse();
+
+    if ( m_plot )
+        m_plot->SetCursor(*wxSTANDARD_CURSOR);
+}
+
+void wxPlottingFrame::OnPlotLeftDown(wxMouseEvent& event)
+{
+    if ( !m_plot || !event.LeftDown() )
+    {
+        event.Skip();
+        return;
+    }
+
+    const PlotHitResult hit = m_plot->HitTest(event.GetPosition());
+    const wxString vertName = VerticalAxisFromHit(hit);
+    if ( vertName.IsEmpty() )
+    {
+        event.Skip();
+        return;
+    }
+
+    Axis* axis = m_plot->GetAxis(vertName);
+    if ( !axis )
+    {
+        event.Skip();
+        return;
+    }
+
+    int canvasY = 0;
+    int plotHeight = 0;
+    if ( !ClientToPlotY(event.GetPosition(), canvasY, plotHeight) )
+    {
+        event.Skip();
+        return;
+    }
+
+    m_draggingAxis = true;
+    m_dragAxisName = vertName;
+    m_dragOrigStart = axis->GetStart();
+    m_dragOrigEnd = axis->GetEnd();
+    m_dragStartCanvasY = canvasY;
+
+    m_plot->CaptureMouse();
+    m_plot->SetCursor(wxCursor(wxCURSOR_SIZENS));
+
+    UpdateHitStatus(hit, true);
+    event.Skip(false); // consume — we are dragging
+}
+
+void wxPlottingFrame::OnPlotLeftUp(wxMouseEvent& event)
+{
+    if ( m_draggingAxis )
+        EndAxisDrag();
+
+    if ( m_plot )
+        UpdateHitStatus(m_plot->HitTest(event.GetPosition()), false);
+
+    event.Skip();
+}
+
+void wxPlottingFrame::OnPlotCaptureLost(wxMouseCaptureLostEvent& WXUNUSED(event))
+{
+    // Do not call ReleaseMouse here — capture is already gone.
+    m_draggingAxis = false;
+    m_dragAxisName.clear();
+    if ( m_plot )
+        m_plot->SetCursor(*wxSTANDARD_CURSOR);
+}
+
+void wxPlottingFrame::OnPlotMotion(wxMouseEvent& event)
+{
+    if ( !m_plot )
+        return;
+
+    if ( m_draggingAxis && event.Dragging() && event.LeftIsDown() )
+    {
+        Axis* axis = m_plot->GetAxis(m_dragAxisName);
+        int canvasY = 0;
+        int plotHeight = 0;
+        if ( axis && ClientToPlotY(event.GetPosition(), canvasY, plotHeight) )
+        {
+            // Screen Y increases downward; plot-normalized Y increases upward.
+            const double dNy =
+                -static_cast<double>(canvasY - m_dragStartCanvasY)
+                / static_cast<double>(plotHeight);
+
+            const double span = m_dragOrigEnd - m_dragOrigStart;
+            double start = m_dragOrigStart + dNy;
+            double end = m_dragOrigEnd + dNy;
+
+            // Keep (end - start) fixed; clamp the band into [0, 1].
+            if ( span >= 0.0 )
+            {
+                if ( start < 0.0 )
+                {
+                    start = 0.0;
+                    end = span;
+                }
+                if ( end > 1.0 )
+                {
+                    end = 1.0;
+                    start = 1.0 - span;
+                }
+            }
+            else
+            {
+                // Inverted span (end < start): preserve signed distance.
+                if ( end < 0.0 )
+                {
+                    end = 0.0;
+                    start = -span;
+                }
+                if ( start > 1.0 )
+                {
+                    start = 1.0;
+                    end = 1.0 + span;
+                }
+            }
+
+            axis->SetPosition(start, end);
+            m_plot->UpdatePlot();
+
+            SetStatusText(wxString::Format(
+                "Dragging vertical axis \"%s\"  position [%.3f, %.3f]  span=%.3f",
+                m_dragAxisName, start, end, end - start));
+        }
+
+        event.Skip(false);
+        return;
+    }
+
+    // Hover: show hit-test (vertical bands are drag targets).
+    const PlotHitResult hit = m_plot->HitTest(event.GetPosition());
+    if ( !VerticalAxisFromHit(hit).IsEmpty() )
+        m_plot->SetCursor(wxCursor(wxCURSOR_SIZENS));
+    else
+        m_plot->SetCursor(*wxSTANDARD_CURSOR);
+
+    UpdateHitStatus(hit, false);
     event.Skip();
 }
