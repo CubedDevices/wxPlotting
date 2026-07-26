@@ -55,6 +55,17 @@ public:
     // Create a default plot
     void CreateDefaultPlot();
 
+    // Axis / series collections (names must be unique within each list).
+    // Add* returns false if the name is empty or already in use.
+    bool AddAxis(const Axis& axis);
+    bool AddSeries(const Series& series);
+
+    // Lookup by name; returns nullptr if not found.
+    Axis* GetAxis(const wxString& name);
+    const Axis* GetAxis(const wxString& name) const;
+    Series* GetSeries(const wxString& name);
+    const Series* GetSeries(const wxString& name) const;
+
     // Rebuild the off-screen buffer and refresh the control.
     void UpdatePlot();
 

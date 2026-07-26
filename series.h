@@ -35,6 +35,10 @@ public:
         return m_seriesType;
     }
 
+    const wxString& GetName() const {
+        return m_name;
+    }
+
     Points Data; 
     bool Visible;
     wxColor Foreground;
@@ -44,6 +48,7 @@ public:
 
  private:
 
+    // must be unique among all series on a plot
     wxString m_name;
     SeriesType m_seriesType;
 

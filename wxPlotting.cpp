@@ -187,10 +187,10 @@ void wxPlotting::CreateDefaultPlot()
     test4.GridStyle = wxPENSTYLE_DOT_DASH;
     test4.GridWidth = 1;
 
-    m_axisList.push_back(test1);
-    m_axisList.push_back(test2);
-    m_axisList.push_back(test3);
-    m_axisList.push_back(test4);
+    AddAxis(test1);
+    AddAxis(test2);
+    AddAxis(test3);
+    AddAxis(test4);
 
     Series series1("Series1", Series::Doubles);
     series1.HorizontalAxis = wxString("Time");
@@ -204,7 +204,7 @@ void wxPlotting::CreateDefaultPlot()
         series1.Data.push_back(wxRealPoint(timestamp, s));
     }
 
-    m_seriesList.push_back(series1);
+    AddSeries(series1);
 
     Series series2("Series2", Series::Doubles);
     series2.HorizontalAxis = wxString("Time");
@@ -218,7 +218,7 @@ void wxPlotting::CreateDefaultPlot()
         series2.Data.push_back(wxRealPoint(timestamp, s));
     }
 
-    m_seriesList.push_back(series2);
+    AddSeries(series2);
 
     Series series3("Series3", Series::Doubles);
     series3.HorizontalAxis = wxString("Time");
@@ -232,8 +232,84 @@ void wxPlotting::CreateDefaultPlot()
         series3.Data.push_back(wxRealPoint(timestamp, s));
     }
 
-    m_seriesList.push_back(series3);
+    AddSeries(series3);
 
+}
+
+bool wxPlotting::AddAxis(const Axis& axis)
+{
+    if ( axis.GetName().IsEmpty() )
+        return false;
+
+    if ( GetAxis(axis.GetName()) != nullptr )
+        return false; // name collision
+
+    m_axisList.push_back(axis);
+    return true;
+}
+
+bool wxPlotting::AddSeries(const Series& series)
+{
+    if ( series.GetName().IsEmpty() )
+        return false;
+
+    if ( GetSeries(series.GetName()) != nullptr )
+        return false; // name collision
+
+    m_seriesList.push_back(series);
+    return true;
+}
+
+Axis* wxPlotting::GetAxis(const wxString& name)
+{
+    if ( name.IsEmpty() )
+        return nullptr;
+
+    for ( auto& axis : m_axisList )
+    {
+        if ( axis.GetName() == name )
+            return &axis;
+    }
+    return nullptr;
+}
+
+const Axis* wxPlotting::GetAxis(const wxString& name) const
+{
+    if ( name.IsEmpty() )
+        return nullptr;
+
+    for ( const auto& axis : m_axisList )
+    {
+        if ( axis.GetName() == name )
+            return &axis;
+    }
+    return nullptr;
+}
+
+Series* wxPlotting::GetSeries(const wxString& name)
+{
+    if ( name.IsEmpty() )
+        return nullptr;
+
+    for ( auto& series : m_seriesList )
+    {
+        if ( series.GetName() == name )
+            return &series;
+    }
+    return nullptr;
+}
+
+const Series* wxPlotting::GetSeries(const wxString& name) const
+{
+    if ( name.IsEmpty() )
+        return nullptr;
+
+    for ( const auto& series : m_seriesList )
+    {
+        if ( series.GetName() == name )
+            return &series;
+    }
+    return nullptr;
 }
 
 
