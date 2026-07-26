@@ -99,7 +99,7 @@ void wxPlotting::CreateDefaultPlot()
     test1.Foreground = (wxColor("Green"));
     test1.Visible = true;
     test1.LabelVisible = true;
-    test1.Width = 2;
+    test1.Width = 3;
     test1.LabelColor = wxColor("Green");
     test1.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
     test1.LabelSide = Axis::BelowOrLeft;
@@ -113,15 +113,15 @@ void wxPlotting::CreateDefaultPlot()
     test1.TickLabelVisible = true;
     test1.TickSide = Axis::BelowOrLeft;
     test1.GridVisible = true;
-    test1.GridColor = wxColor("White");
-    test1.GridStyle = wxPENSTYLE_DOT;
+    test1.GridColor = wxColor("Grey");
+    test1.GridStyle = wxPENSTYLE_SOLID;
     test1.GridWidth = 1;
 
     Axis test2("Signal1", Axis::Vertical);
     test2.Foreground = (wxColor("Magenta"));
     test2.Visible = true;
     test2.LabelVisible = true;
-    test2.Width = 2;
+    test2.Width = 3;
     test2.LabelColor = wxColor("Magenta");
     test2.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
     test2.LabelSide = Axis::BelowOrLeft;
@@ -129,21 +129,21 @@ void wxPlotting::CreateDefaultPlot()
     test2.SetPosition(0.0, 0.47);
     test2.SetRange(-3.3, 3.3);   // += 3.3v
     test2.TickRange = 1.0;      // 1v ticks
-    test2.TickColor = (wxColor("Magenta"));
+    test2.TickColor = wxColor("Magenta");
     test2.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
     test2.TickVisible = true;
     test2.TickLabelVisible = true;
     test2.TickSide = Axis::BelowOrLeft;
     test2.GridVisible = true;
-    test2.GridColor = wxColor("White");
-    test2.GridStyle = wxPENSTYLE_DOT;
+    test2.GridColor = wxColor("Magenta").ChangeLightness(50);
+    test2.GridStyle = wxPENSTYLE_DOT_DASH;
     test2.GridWidth = 1;
 
     Axis test3("Signal2", Axis::Vertical);
     test3.Foreground = (wxColor("Cyan"));
     test3.Visible = true;
     test3.LabelVisible = true;
-    test3.Width = 2;
+    test3.Width = 3;
     test3.LabelColor = wxColor("Cyan");
     test3.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
     test3.LabelSide = Axis::BelowOrLeft;
@@ -157,8 +157,8 @@ void wxPlotting::CreateDefaultPlot()
     test3.TickLabelVisible = true;
     test3.TickSide = Axis::BelowOrLeft;
     test3.GridVisible = true;
-    test3.GridColor = wxColor("White");
-    test3.GridStyle = wxPENSTYLE_DOT;
+    test3.GridColor = wxColor("Cyan").ChangeLightness(50);
+    test3.GridStyle = wxPENSTYLE_DOT_DASH;
     test3.GridWidth = 1;
 
     m_axisList.push_back(test1);
