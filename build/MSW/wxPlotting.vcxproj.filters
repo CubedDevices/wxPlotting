@@ -35,6 +35,12 @@
     <ClInclude Include="..\..\axis.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\plothit.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\plotcoords.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\series.h">
       <Filter>Header Files</Filter>
     </ClInclude>

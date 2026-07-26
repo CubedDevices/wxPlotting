@@ -492,6 +492,9 @@ wxPlottingFrame::wxPlottingFrame()
 
     m_plot->UpdatePlot();
 
+    // Hit-test demo: hover updates the status bar.
+    m_plot->Bind(wxEVT_MOTION, &wxPlottingFrame::OnPlotMotion, this);
+
     wxBoxSizer* sizer = new wxBoxSizer(wxVERTICAL);
     sizer->Add(m_plot, 1, wxEXPAND | wxALL, 0);
     SetSizer(sizer);
@@ -509,8 +512,53 @@ void wxPlottingFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
     wxMessageBox(
         "wxPlotting test application\n\n"
         "Hosts an owner-drawn wxPlotting control that renders "
-        "via an off-screen wxMemoryDC.",
+        "via an off-screen wxMemoryDC.\n\n"
+        "Move the mouse over series and axes to see hit-test results "
+        "in the status bar.",
         "About wxPlotting",
         wxOK | wxICON_INFORMATION,
         this);
+}
+
+void wxPlottingFrame::OnPlotMotion(wxMouseEvent& event)
+{
+    if ( !m_plot )
+        return;
+
+    const PlotHitResult hit = m_plot->HitTest(event.GetPosition());
+
+    wxString axesText;
+    for ( size_t i = 0; i < hit.axes.size(); ++i )
+    {
+        if ( i )
+            axesText += wxT(", ");
+        axesText += hit.axes[i];
+    }
+    if ( axesText.empty() )
+        axesText = wxT("—");
+
+    switch ( hit.kind )
+    {
+        case PlotHitKind::Series:
+            SetStatusText(wxString::Format(
+                "Series: %s  axes: [%s]  sample[%lu]=(%.4g, %.4g)  d=%.1fpx",
+                hit.name,
+                axesText,
+                static_cast<unsigned long>(hit.sampleIndex),
+                hit.dataPoint.x, hit.dataPoint.y,
+                hit.distancePx));
+            break;
+        case PlotHitKind::Axis:
+            SetStatusText(wxString::Format("Axes: [%s]", axesText));
+            break;
+        case PlotHitKind::PlotArea:
+            SetStatusText("Plot area");
+            break;
+        case PlotHitKind::None:
+        default:
+            SetStatusText("—");
+            break;
+    }
+
+    event.Skip();
 }

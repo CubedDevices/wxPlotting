@@ -6,10 +6,15 @@
 
 #include "wxPlotting.h"
 #include "seriesrenderer.h"
+#include "plotcoords.h"
 
 #include "wx/dcclient.h"
 #include "wx/dcmemory.h"
 #include "wx/settings.h"
+
+#include <cmath>
+#include <limits>
+#include <vector>
 
 // ----------------------------------------------------------------------------
 // constants
@@ -229,6 +234,279 @@ void wxPlotting::UpdatePlot(bool forceImmediate)
     Refresh(false);
     if ( forceImmediate )
         Update();
+}
+
+// ----------------------------------------------------------------------------
+// hit-testing
+// ----------------------------------------------------------------------------
+
+namespace
+{
+    double DistancePointToSegment(const wxPoint& p, const wxPoint& a, const wxPoint& b)
+    {
+        const double abx = static_cast<double>(b.x - a.x);
+        const double aby = static_cast<double>(b.y - a.y);
+        const double apx = static_cast<double>(p.x - a.x);
+        const double apy = static_cast<double>(p.y - a.y);
+        const double abLen2 = abx * abx + aby * aby;
+        if ( abLen2 <= 0.0 )
+        {
+            const double dx = apx;
+            const double dy = apy;
+            return std::sqrt(dx * dx + dy * dy);
+        }
+
+        double t = (apx * abx + apy * aby) / abLen2;
+        if ( t < 0.0 ) t = 0.0;
+        else if ( t > 1.0 ) t = 1.0;
+
+        const double cx = a.x + t * abx;
+        const double cy = a.y + t * aby;
+        const double dx = p.x - cx;
+        const double dy = p.y - cy;
+        return std::sqrt(dx * dx + dy * dy);
+    }
+
+    // True if canvasPos lies in the axis's valid data region (not merely near
+    // the drawn axis line). Horizontal axes cover their X span across the
+    // full plot height; vertical axes cover their Y span across the full width.
+    bool AxisRegionContains(const Axis& axis, const wxRect& plot, const wxPoint& p)
+    {
+        if ( plot.IsEmpty() || plot.GetWidth() <= 0 || plot.GetHeight() <= 0 )
+            return false;
+        if ( !plot.Contains(p) )
+            return false;
+
+        const double nx = (p.x - plot.x) / static_cast<double>(plot.GetWidth());
+        const double ny = 1.0
+            - (p.y - plot.y) / static_cast<double>(plot.GetHeight());
+
+        double lo = axis.GetStart();
+        double hi = axis.GetEnd();
+        if ( lo > hi )
+        {
+            const double t = lo;
+            lo = hi;
+            hi = t;
+        }
+
+        if ( axis.GetAxisType() == Axis::Horizontal )
+            return nx >= lo && nx <= hi;
+
+        if ( axis.GetAxisType() == Axis::Vertical )
+            return ny >= lo && ny <= hi;
+
+        return false;
+    }
+
+    void CollectAxesAtPoint(const std::list<Axis>& axes,
+                            const wxRect& plot,
+                            const wxPoint& canvasPos,
+                            std::vector<wxString>& outNames)
+    {
+        outNames.clear();
+        for ( const auto& axis : axes )
+        {
+            if ( !axis.Visible )
+                continue;
+            if ( AxisRegionContains(axis, plot, canvasPos) )
+                outNames.push_back(axis.GetName());
+        }
+    }
+
+    struct SeriesHitCandidate
+    {
+        bool        hit = false;
+        double      distance = std::numeric_limits<double>::max();
+        size_t      sampleIndex = 0;
+        wxRealPoint dataPoint;
+    };
+
+    SeriesHitCandidate HitTestSeriesGeometry(
+        const Series& series,
+        const Axis& horz,
+        const Axis& vert,
+        const wxRect& plot,
+        const wxPoint& canvasPos,
+        int tolerancePx)
+    {
+        SeriesHitCandidate best;
+
+        const Series::Points points = series.GetPoints();
+        if ( points.size() < 1 )
+            return best;
+
+        // Build screen polyline with the same break rules as DrawSeries.
+        struct MappedSample
+        {
+            bool     valid = false;
+            wxPoint  screen;
+            size_t   index = 0;
+            wxRealPoint data;
+        };
+
+        std::vector<MappedSample> mapped;
+        mapped.reserve(points.size());
+
+        for ( size_t i = 0; i < points.size(); ++i )
+        {
+            MappedSample m;
+            m.index = i;
+            m.data = points[i];
+
+            if ( points[i].x < horz.GetRangeStart() || points[i].x > horz.GetRangeEnd() ||
+                 points[i].y < vert.GetRangeStart() || points[i].y > vert.GetRangeEnd() )
+            {
+                m.valid = false;
+            }
+            else
+            {
+                const wxRealPoint conv(horz.ConvertValue(points[i].x),
+                                       vert.ConvertValue(points[i].y));
+                m.screen = PlotToScreen(plot, conv);
+                m.valid = true;
+            }
+            mapped.push_back(m);
+        }
+
+        auto considerSegment = [&](const wxPoint& a, const wxPoint& b,
+                                   size_t idxA, size_t idxB,
+                                   const wxRealPoint& dataA, const wxRealPoint& dataB)
+        {
+            const double d = DistancePointToSegment(canvasPos, a, b);
+            if ( d > static_cast<double>(tolerancePx) )
+                return;
+            if ( !best.hit || d < best.distance )
+            {
+                best.hit = true;
+                best.distance = d;
+                // Nearer sample endpoint for tooltips / selection anchors.
+                const double da = (canvasPos.x - a.x) * (canvasPos.x - a.x)
+                                + (canvasPos.y - a.y) * (canvasPos.y - a.y);
+                const double db = (canvasPos.x - b.x) * (canvasPos.x - b.x)
+                                + (canvasPos.y - b.y) * (canvasPos.y - b.y);
+                if ( da <= db )
+                {
+                    best.sampleIndex = idxA;
+                    best.dataPoint = dataA;
+                }
+                else
+                {
+                    best.sampleIndex = idxB;
+                    best.dataPoint = dataB;
+                }
+            }
+        };
+
+        // Single-point series: hit disk around the sample.
+        if ( mapped.size() == 1 && mapped[0].valid )
+        {
+            const double dx = canvasPos.x - mapped[0].screen.x;
+            const double dy = canvasPos.y - mapped[0].screen.y;
+            const double d = std::sqrt(dx * dx + dy * dy);
+            if ( d <= static_cast<double>(tolerancePx) )
+            {
+                best.hit = true;
+                best.distance = d;
+                best.sampleIndex = mapped[0].index;
+                best.dataPoint = mapped[0].data;
+            }
+            return best;
+        }
+
+        for ( size_t i = 1; i < mapped.size(); ++i )
+        {
+            if ( !mapped[i - 1].valid || !mapped[i].valid )
+                continue; // gap / Break — no segment
+
+            const wxPoint& a = mapped[i - 1].screen;
+            const wxPoint& b = mapped[i].screen;
+
+            if ( series.RenderStyle == SeriesRenderStyle::StairStep )
+            {
+                const wxPoint corner(b.x, a.y);
+                considerSegment(a, corner,
+                                mapped[i - 1].index, mapped[i].index,
+                                mapped[i - 1].data, mapped[i].data);
+                considerSegment(corner, b,
+                                mapped[i - 1].index, mapped[i].index,
+                                mapped[i - 1].data, mapped[i].data);
+            }
+            else
+            {
+                considerSegment(a, b,
+                                mapped[i - 1].index, mapped[i].index,
+                                mapped[i - 1].data, mapped[i].data);
+            }
+        }
+
+        return best;
+    }
+} // namespace
+
+PlotHitResult wxPlotting::HitTest(const wxPoint& clientPos, int tolerancePx) const
+{
+    int canvasX = clientPos.x;
+    int canvasY = clientPos.y;
+    // Match OnPaint / DoPrepareDC scroll mapping.
+    CalcUnscrolledPosition(clientPos.x, clientPos.y, &canvasX, &canvasY);
+    return HitTestCanvas(wxPoint(canvasX, canvasY), tolerancePx);
+}
+
+PlotHitResult wxPlotting::HitTestCanvas(const wxPoint& canvasPos, int tolerancePx) const
+{
+    PlotHitResult result;
+    if ( tolerancePx < 0 )
+        tolerancePx = 0;
+
+    // Axes: region containment (full valid-data area), collect all matches.
+    // A typical pick over data yields one horizontal and one vertical axis.
+    CollectAxesAtPoint(m_axisList, m_plot, canvasPos, result.axes);
+
+    // --- Series (front-most first: reverse draw order) ---------------------
+    for ( auto it = m_seriesList.rbegin(); it != m_seriesList.rend(); ++it )
+    {
+        if ( !it->Visible )
+            continue;
+
+        const Axis* horz = GetAxis(it->HorizontalAxis);
+        const Axis* vert = GetAxis(it->VerticalAxis);
+        if ( !horz || !vert )
+            continue;
+
+        const SeriesHitCandidate cand =
+            HitTestSeriesGeometry(*it, *horz, *vert, m_plot, canvasPos, tolerancePx);
+        if ( cand.hit )
+        {
+            result.kind = PlotHitKind::Series;
+            result.name = it->GetName();
+            result.distancePx = cand.distance;
+            result.sampleIndex = cand.sampleIndex;
+            result.dataPoint = cand.dataPoint;
+            // result.axes already filled for this canvas position
+            return result;
+        }
+    }
+
+    // --- Axes only (region hit, no series stroke) --------------------------
+    if ( !result.axes.empty() )
+    {
+        result.kind = PlotHitKind::Axis;
+        // Primary name: first axis in registration order (see axes vector).
+        result.name = result.axes.front();
+        result.distancePx = 0.0;
+        return result;
+    }
+
+    // --- Empty data area (inside plot, no axis region — uncommon) ----------
+    if ( m_plot.Contains(canvasPos) )
+    {
+        result.kind = PlotHitKind::PlotArea;
+        return result;
+    }
+
+    result.kind = PlotHitKind::None;
+    return result;
 }
 
 void wxPlotting::SetMargin(int value)

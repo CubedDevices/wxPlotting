@@ -63,6 +63,11 @@ private:
      */
     void OnAbout(wxCommandEvent& event);
 
+    /**
+     * @brief Mouse move over the plot: update status bar from hit-test.
+     */
+    void OnPlotMotion(wxMouseEvent& event);
+
     wxPlotting* m_plot;  ///< Owned plot control (child of this frame).
 
     wxDECLARE_EVENT_TABLE();

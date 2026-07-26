@@ -18,6 +18,7 @@
 #include <list>
 #include "axis.h"
 #include "series.h"
+#include "plothit.h"
 
 /**
  * @class wxPlotting
@@ -349,6 +350,32 @@ public:
      * @return Reference to the plot buffer (may be invalid before first layout).
      */
     const wxBitmap& GetBuffer() const { return m_buffer; }
+
+    // --- Hit-testing (UI interaction) --------------------------------------
+
+    /**
+     * @brief Hit-test a point in client coordinates (typical for mouse events).
+     * @param clientPos Position relative to this window's client area.
+     * @param tolerancePx Max distance in canvas pixels for series stroke hits.
+     * @return Hit result; @ref PlotHitResult::axes lists all axes covering the point.
+     * @details Converts client → unscrolled canvas coordinates first, matching
+     *          scroll handling in @ref OnPaint.
+     * @see HitTestCanvas, PlotHitResult
+     */
+    PlotHitResult HitTest(const wxPoint& clientPos, int tolerancePx = 6) const;
+
+    /**
+     * @brief Hit-test a point already in unscrolled canvas/logical coordinates.
+     * @param canvasPos Position in the same space as the off-screen buffer / @c m_plot.
+     * @param tolerancePx Max distance in canvas pixels for series stroke hits
+     *        (axis hits use full valid-data region containment, not line distance).
+     * @return Hit result. Priority for @ref PlotHitResult::kind: series stroke,
+     *         then axis region(s), then plot area. @ref PlotHitResult::axes always
+     *         lists every visible axis whose valid region contains the pick
+     *         (typically one horizontal and one vertical).
+     * @see HitTest, PlotHitResult
+     */
+    PlotHitResult HitTestCanvas(const wxPoint& canvasPos, int tolerancePx = 6) const;
 
 protected:
     /**

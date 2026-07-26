@@ -16,6 +16,8 @@
 
 #include <memory>
 
+#include "plotcoords.h"
+
 class Series;
 
 /**
@@ -102,11 +104,7 @@ protected:
      */
     wxPoint ToScreen(const wxRealPoint& plotPt) const
     {
-        wxPoint pt;
-        pt.x = m_plot.x + wxRound(plotPt.x * m_plot.GetWidth());
-        pt.y = m_plot.y + m_plot.GetHeight()
-             - wxRound(plotPt.y * m_plot.GetHeight());
-        return pt;
+        return PlotToScreen(m_plot, plotPt);
     }
 
     wxDC*  m_dc = nullptr;   ///< Valid between @ref Begin and @ref End.
