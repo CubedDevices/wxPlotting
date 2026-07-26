@@ -118,6 +118,54 @@ bool wxPlotting::AddSeries(const Series& series)
     return true;
 }
 
+bool wxPlotting::RemoveAxis(const wxString& name)
+{
+    if ( name.IsEmpty() )
+        return false;
+
+    for ( auto it = m_axisList.begin(); it != m_axisList.end(); ++it )
+    {
+        if ( it->GetName() == name )
+        {
+            m_axisList.erase(it);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool wxPlotting::RemoveSeries(const wxString& name)
+{
+    if ( name.IsEmpty() )
+        return false;
+
+    for ( auto it = m_seriesList.begin(); it != m_seriesList.end(); ++it )
+    {
+        if ( it->GetName() == name )
+        {
+            m_seriesList.erase(it);
+            return true;
+        }
+    }
+    return false;
+}
+
+void wxPlotting::ClearAxes()
+{
+    m_axisList.clear();
+}
+
+void wxPlotting::ClearSeries()
+{
+    m_seriesList.clear();
+}
+
+void wxPlotting::Clear()
+{
+    ClearAxes();
+    ClearSeries();
+}
+
 Axis* wxPlotting::GetAxis(const wxString& name)
 {
     if ( name.IsEmpty() )
@@ -171,11 +219,15 @@ const Series* wxPlotting::GetSeries(const wxString& name) const
 }
 
 
-void wxPlotting::UpdatePlot()
+void wxPlotting::UpdatePlot(bool forceImmediate)
 {
+    // Rebuild the off-screen buffer, then ask the window to repaint.
+    // Avoid Update() by default so high-rate CallAfter(UpdatePlot) does not
+    // force a synchronous paint storm on the UI thread.
     Render();
     Refresh(false);
-    Update();
+    if ( forceImmediate )
+        Update();
 }
 
 void wxPlotting::SetMargin(int value)
