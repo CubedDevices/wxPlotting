@@ -385,6 +385,11 @@ protected:
     void Render();
 
     /**
+     * @brief DrawSeries, called from @ref DrawPlot.
+     */
+    void DrawSeries(wxMemoryDC& dc, const wxSize& size);
+
+    /**
      * @brief Sync effective drawing size from client size and minimum.
      * @return @c true if the effective drawing size changed.
      */

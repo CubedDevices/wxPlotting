@@ -536,40 +536,45 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 
             if (iter->LabelVisible && !iter->Label.IsEmpty())
             {
-                // Center the label along the vertical axis, on the requested
-                // side, rotated 90° CCW so text reads bottom-to-top.
-                //
-                // On MSW, DrawRotatedText uses GDI escapement; for angle 90°
-                // the string occupies (see wxMSWDCImpl::DoDrawRotatedText):
-                //   x in [ox, ox + h],  y in [oy - w, oy]
-                // where (w, h) is the unrotated text extent.  The origin is
-                // therefore the bottom-left of the upright bounding box of the
-                // rotated glyphs — not the side nearer the axis.
+                // Center the label along the vertical axis on LabelSide.
+                // LabelRotated (default true): 90° CCW, reads bottom-to-top.
+                // LabelRotated false: upright text for long titles.
                 dc.SetFont(iter->LabelFont);
                 dc.SetTextForeground(iter->LabelColor);
 
                 const wxSize textSize = dc.GetTextExtent(iter->Label);
                 const int midY = (startPt.y + endPt.y) / 2;
                 const int clear = AxisTitleClearance(dc, *iter, false);
-                const int w = textSize.x; // length along the axis after rotation
-                const int h = textSize.y; // thickness perpendicular to the axis
 
-                // Origin y so the vertical span [oy - w, oy] is centered on midY.
-                const int labelY = midY + w / 2;
-
-                int labelX;
-                if (iter->LabelSide == Axis::AboveOrRight)
+                if ( iter->LabelRotated )
                 {
-                    // Right of the axis: left edge of text (ox) at axisX + clear.
-                    labelX = startPt.x + clear;
+                    // On MSW, DrawRotatedText at 90° occupies:
+                    //   x in [ox, ox + h],  y in [oy - w, oy]
+                    // where (w, h) is the unrotated text extent.
+                    const int w = textSize.x; // length along the axis after rotation
+                    const int h = textSize.y; // thickness perpendicular to the axis
+
+                    const int labelY = midY + w / 2;
+                    int labelX;
+                    if (iter->LabelSide == Axis::AboveOrRight)
+                        labelX = startPt.x + clear;
+                    else
+                        labelX = startPt.x - clear - h;
+
+                    dc.DrawRotatedText(iter->Label, labelX, labelY, 90.0);
                 }
                 else
                 {
-                    // Left of the axis: right edge of text (ox + h) at axisX - clear.
-                    labelX = startPt.x - clear - h;
-                }
+                    // Upright: center vertically on the axis span.
+                    const int labelY = midY - textSize.y / 2;
+                    int labelX;
+                    if (iter->LabelSide == Axis::AboveOrRight)
+                        labelX = startPt.x + clear;
+                    else
+                        labelX = startPt.x - clear - textSize.x;
 
-                dc.DrawRotatedText(iter->Label, labelX, labelY, 90.0);
+                    dc.DrawText(iter->Label, labelX, labelY);
+                }
             }
         }
 
@@ -579,7 +584,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
             double rangeEnd = iter->GetRangeEnd();
 
             double rangeDist = rangeEnd - rangeStart;
-            if (iter->TickRange > 0.0 && iter->TickRange < rangeDist)
+            if (iter->TickRange >= 0.0 && iter->TickRange <= rangeDist)
             {
                 wxPen penGrid(iter->GridColor, iter->GridWidth, iter->GridStyle);
                 wxPen penTick(iter->TickColor);
@@ -695,6 +700,11 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
         }
     }
 
+    DrawSeries(dc, size);
+}
+
+void wxPlotting::DrawSeries(wxMemoryDC& dc, const wxSize& size)
+{
     for (auto iter = m_seriesList.begin();
         iter != m_seriesList.end();
         ++iter)
@@ -772,21 +782,6 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
         // unique_ptr destroys the renderer here.
     }
 
-    /*
-    dc.SetPen(wxPen(GetForegroundColour()));
-    dc.SetTextForeground(GetForegroundColour());
-    dc.SetFont(GetFont());
-
-    const wxString label = "wxPlotting (MemoryDC template)";
-    const wxSize textSize = dc.GetTextExtent(label);
-    const int x = (size.x - textSize.x) / 2;
-    const int y = (size.y - textSize.y) / 2;
-    dc.DrawText(label, x > 0 ? x : 0, y > 0 ? y : 0);
-
-    // Simple border so the control bounds are obvious during testing.
-    dc.SetBrush(*wxTRANSPARENT_BRUSH);
-    dc.DrawRectangle(0, 0, size.x, size.y);
-    */
 }
 
 // ----------------------------------------------------------------------------

@@ -62,113 +62,228 @@ wxPlottingFrame::wxPlottingFrame()
     // below this minimum.  Raise min height later as series data grows.
     m_plot = new wxPlotting(this, wxID_ANY);
 
-    Axis test1("Time", Axis::Horizontal);
-    test1.Foreground = (wxColor("Green"));
-    test1.Visible = true;
-    test1.LabelVisible = true;
-    test1.Width = 3;
-    test1.LabelColor = wxColor("Green");
-    test1.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
-    test1.LabelSide = Axis::BelowOrLeft;
-    test1.SetLocation(0.0);
-    test1.SetPosition(0.0, 1.0);
-    test1.SetRange(0, 100); // 0 to 100 seconds
-    test1.TickRange = 10; // tick every 10 seconds
-    test1.TickColor = wxColor("Green");
-    test1.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
-    test1.TickVisible = true;
-    test1.TickLabelVisible = true;
-    test1.TickLabelFormat = "%.0f"; // integer seconds
-    test1.TickSide = Axis::BelowOrLeft;
-    test1.GridVisible = true;
-    test1.GridColor = wxColor("Grey");
-    test1.GridStyle = wxPENSTYLE_SOLID;
-    test1.GridWidth = 1;
+    Axis timeAxis("Time", Axis::Horizontal);
+    timeAxis.Foreground = (wxColor("Green"));
+    timeAxis.Visible = true;
+    timeAxis.LabelVisible = true;
+    timeAxis.Width = 3;
+    timeAxis.LabelColor = wxColor("Green");
+    timeAxis.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
+    timeAxis.LabelSide = Axis::BelowOrLeft;
+    timeAxis.SetLocation(0.0);
+    timeAxis.SetPosition(0.0, 1.0);
+    timeAxis.SetRange(0, 256); // 0 to 100 seconds
+    timeAxis.TickRange = 10; // tick every 10 seconds
+    timeAxis.TickColor = wxColor("Green");
+    timeAxis.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
+    timeAxis.TickVisible = true;
+    timeAxis.TickLabelVisible = true;
+    timeAxis.TickLabelFormat = "%.0f"; // integer seconds
+    timeAxis.TickSide = Axis::BelowOrLeft;
+    timeAxis.GridVisible = true;
+    timeAxis.GridColor = wxColor("Grey");
+    timeAxis.GridStyle = wxPENSTYLE_SOLID;
+    timeAxis.GridWidth = 1;
 
-    Axis test2("Signal1", Axis::Vertical);
-    test2.Foreground = (wxColor("Magenta"));
-    test2.Visible = true;
-    test2.LabelVisible = true;
-    test2.Width = 3;
-    test2.LabelColor = wxColor("Magenta");
-    test2.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
-    test2.LabelSide = Axis::BelowOrLeft;
-    test2.SetLocation(0.0);
-    test2.SetPosition(0.0, 0.32);
-    test2.SetRange(-3.3, 3.3);   // += 3.3v
-    test2.TickRange = 1.0;      // 1v ticks
-    test2.TickColor = wxColor("Magenta");
-    test2.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
-    test2.TickVisible = true;
-    test2.TickLabelVisible = true;
-    test2.TickLabelFormat = "%.1f"; // one decimal place
-    test2.TickSide = Axis::BelowOrLeft;
-    test2.GridVisible = true;
-    test2.GridColor = wxColor("Magenta").ChangeLightness(50);
-    test2.GridStyle = wxPENSTYLE_DOT_DASH;
-    test2.GridWidth = 1;
+    Axis a1("Analog1", Axis::Vertical);
+    a1.Foreground = (wxColor("Magenta"));
+    a1.Visible = true;
+    a1.LabelVisible = true;
+    a1.LabelRotated = true;
+    a1.Width = 3;
+    a1.LabelColor = wxColor("Magenta");
+    a1.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
+    a1.LabelSide = Axis::BelowOrLeft;
+    a1.SetLocation(0.0);
+    a1.SetPosition(0.77, 1.0);
+    a1.SetRange(-3.3, 3.3);   // += 3.3v
+    a1.TickRange = 1.0;      // 1v ticks
+    a1.TickColor = wxColor("Magenta");
+    a1.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
+    a1.TickVisible = true;
+    a1.TickLabelVisible = true;
+    a1.TickLabelFormat = "%.1f"; // one decimal place
+    a1.TickSide = Axis::BelowOrLeft;
+    a1.GridVisible = true;
+    a1.GridColor = wxColor("Magenta").ChangeLightness(50);
+    a1.GridStyle = wxPENSTYLE_DOT_DASH;
+    a1.GridWidth = 1;
 
-    Axis test3("Signal2", Axis::Vertical);
-    test3.Foreground = (wxColor("Cyan"));
-    test3.Visible = true;
-    test3.LabelVisible = true;
-    test3.Width = 3;
-    test3.LabelColor = wxColor("Cyan");
-    test3.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
-    test3.LabelSide = Axis::BelowOrLeft;
-    test3.SetLocation(0.0);
-    test3.SetPosition(0.34, 0.65);
-    test3.SetRange(-3.3, 3.3);   // += 3.3v
-    test3.TickRange = 1.0; // 1v ticks
-    test3.TickColor = (wxColor("Cyan"));
-    test3.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
-    test3.TickVisible = true;
-    test3.TickLabelVisible = true;
-    test3.TickLabelFormat = "%.1f"; // one decimal place
-    test3.TickSide = Axis::BelowOrLeft;
-    test3.GridVisible = true;
-    test3.GridColor = wxColor("Cyan").ChangeLightness(50);
-    test3.GridStyle = wxPENSTYLE_DOT_DASH;
-    test3.GridWidth = 1;
+    Axis a2("Analog2", Axis::Vertical);
+    a2.Foreground = (wxColor("Cyan"));
+    a2.Visible = true;
+    a2.LabelVisible = true;
+    a2.LabelRotated = true;
+    a2.Width = 3;
+    a2.LabelColor = wxColor("Cyan");
+    a2.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
+    a2.LabelSide = Axis::BelowOrLeft;
+    a2.SetLocation(0.0);
+    a2.SetPosition(0.50, 0.73);
+    a2.SetRange(-3.3, 3.3);   // += 3.3v
+    a2.TickRange = 1.0; // 1v ticks
+    a2.TickColor = (wxColor("Cyan"));
+    a2.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
+    a2.TickVisible = true;
+    a2.TickLabelVisible = true;
+    a2.TickLabelFormat = "%.1f"; // one decimal place
+    a2.TickSide = Axis::BelowOrLeft;
+    a2.GridVisible = true;
+    a2.GridColor = wxColor("Cyan").ChangeLightness(50);
+    a2.GridStyle = wxPENSTYLE_DOT_DASH;
+    a2.GridWidth = 1;
 
-    Axis test4("Signal3", Axis::Vertical);
-    test4.Foreground = (wxColor("Yellow"));
-    test4.Visible = true;
-    test4.LabelVisible = true;
-    test4.Width = 3;
-    test4.LabelColor = wxColor("Yellow");
-    test4.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
-    test4.LabelSide = Axis::BelowOrLeft;
-    test4.SetLocation(0.0);
-    test4.SetPosition(0.67, 1.0);
-    test4.SetRange(-3.3, 3.3);   // += 3.3v
-    test4.TickRange = 1.0; // 1v ticks
-    test4.TickColor = (wxColor("Yellow"));
-    test4.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
-    test4.TickVisible = true;
-    test4.TickLabelVisible = true;
-    test4.TickLabelFormat = "%.1f"; // one decimal place
-    test4.TickSide = Axis::BelowOrLeft;
-    test4.GridVisible = true;
-    test4.GridColor = wxColor("Yellow").ChangeLightness(50);
-    test4.GridStyle = wxPENSTYLE_DOT_DASH;
-    test4.GridWidth = 1;
 
-    m_plot->AddAxis(test1);
-    m_plot->AddAxis(test2);
-    m_plot->AddAxis(test3);
-    m_plot->AddAxis(test4);
+    Axis d0("D0", Axis::Vertical);
+    d0.Visible = true;
+    d0.Foreground = wxColor("White");
+    d0.GridVisible = false;
+    d0.GridStyle = wxPENSTYLE_SOLID;
+    d0.GridColor = wxColor("White").ChangeLightness(150);
+    d0.Label = "D0";
+    d0.LabelColor = wxColor("White");
+    d0.LabelVisible = true;
+    d0.LabelSide = Axis::BelowOrLeft;
+    d0.SetLocation(0);
+    d0.SetPosition(0.0, 0.04);
+    d0.SetRange(0, 1);
+    d0.TickLabelVisible = false;
+    d0.TickVisible = false;
+    m_plot->AddAxis(d0);
+
+    Axis d1("D1", Axis::Vertical);
+    d1.Visible = true;
+    d1.Foreground = wxColor("Red");
+    d1.GridVisible = false;
+    d1.GridStyle = wxPENSTYLE_SOLID;
+    d1.GridColor = wxColor("Red").ChangeLightness(150);
+    d1.Label = "D1";
+    d1.LabelColor = wxColor("Red");
+    d1.LabelVisible = true;
+    d1.LabelSide = Axis::BelowOrLeft;
+    d1.SetLocation(0);
+    d1.SetPosition(0.05, 0.10);
+    d1.SetRange(0, 1);
+    d1.TickLabelVisible = false;
+    d1.TickVisible = false;
+    m_plot->AddAxis(d1);
+
+    Axis d2("D2", Axis::Vertical);
+    d2.Visible = true;
+    d2.Foreground = wxColor("Orange");
+    d2.GridVisible = false;
+    d2.GridStyle = wxPENSTYLE_SOLID;
+    d2.GridColor = wxColor("Orange").ChangeLightness(150);
+    d2.Label = "D2";
+    d2.LabelColor = wxColor("Orange");
+    d2.LabelVisible = true;
+    d2.LabelSide = Axis::BelowOrLeft;
+    d2.SetLocation(0);
+    d2.SetPosition(0.11, 0.16);
+    d2.SetRange(0, 1);
+    d2.TickLabelVisible = false;
+    d2.TickVisible = false;
+    m_plot->AddAxis(d2);
+
+    Axis d3("D3", Axis::Vertical);
+    d3.Visible = true;
+    d3.Foreground = wxColor("Yellow");
+    d3.GridVisible = false;
+    d3.GridStyle = wxPENSTYLE_SOLID;
+    d3.GridColor = wxColor("Yellow").ChangeLightness(150);
+    d3.Label = "D3";
+    d3.LabelColor = wxColor("Yellow");
+    d3.LabelVisible = true;
+    d3.LabelSide = Axis::BelowOrLeft;
+    d3.SetLocation(0);
+    d3.SetPosition(0.17, 0.22);
+    d3.SetRange(0, 1);
+    d3.TickLabelVisible = false;
+    d3.TickVisible = false;
+    m_plot->AddAxis(d3);
+
+    Axis d4("D4", Axis::Vertical);
+    d4.Visible = true;
+    d4.Foreground = wxColor("Cyan");
+    d4.GridVisible = false;
+    d4.GridStyle = wxPENSTYLE_SOLID;
+    d4.GridColor = wxColor("Cyan").ChangeLightness(150);
+    d4.Label = "D4";
+    d4.LabelColor = wxColor("Cyan");
+    d4.LabelVisible = true;
+    d4.LabelSide = Axis::BelowOrLeft;
+    d4.SetLocation(0);
+    d4.SetPosition(0.23, 0.28);
+    d4.SetRange(0, 1);
+    d4.TickLabelVisible = false;
+    d4.TickVisible = false;
+    m_plot->AddAxis(d4);
+
+    Axis d5("D5", Axis::Vertical);
+    d5.Visible = true;
+    d5.Foreground = wxColor("Blue");
+    d5.GridVisible = false;
+    d5.GridStyle = wxPENSTYLE_SOLID;
+    d5.GridColor = wxColor("Blue").ChangeLightness(150);
+    d5.Label = "D5";
+    d5.LabelColor = wxColor("Blue");
+    d5.LabelVisible = true;
+    d5.LabelSide = Axis::BelowOrLeft;
+    d5.SetLocation(0);
+    d5.SetPosition(0.29, 0.34);
+    d5.SetRange(0, 1);
+    d5.TickLabelVisible = false;
+    d5.TickVisible = false;
+    m_plot->AddAxis(d5);
+
+    Axis d6("D6", Axis::Vertical);
+    d6.Visible = true;
+    d6.Foreground = wxColor("Magenta");
+    d6.GridVisible = false;
+    d6.GridStyle = wxPENSTYLE_SOLID;
+    d6.GridColor = wxColor("Magenta").ChangeLightness(150);
+    d6.Label = "D6";
+    d6.LabelColor = wxColor("Magenta");
+    d6.LabelVisible = true;
+    d6.LabelSide = Axis::BelowOrLeft;
+    d6.SetLocation(0);
+    d6.SetPosition(0.35, 0.40);
+    d6.SetRange(0, 1);
+    d6.TickLabelVisible = false;
+    d6.TickVisible = false;
+    m_plot->AddAxis(d6);
+
+    Axis d7("D7", Axis::Vertical);
+    d7.Visible = true;
+    d7.Foreground = wxColor("Grey");
+    d7.GridVisible = false;
+    d7.GridStyle = wxPENSTYLE_SOLID;
+    d7.GridColor = wxColor("Grey").ChangeLightness(150);
+    d7.Label = "D7";
+    d7.LabelColor = wxColor("Grey");
+    d7.LabelVisible = true;
+    d7.LabelSide = Axis::BelowOrLeft;
+    d7.SetLocation(0);
+    d7.SetPosition(0.41, 0.46);
+    d7.SetRange(0, 1);
+    d7.TickLabelVisible = false;
+    d7.TickVisible = false;
+    m_plot->AddAxis(d7);
+
+    m_plot->AddAxis(timeAxis);
+    m_plot->AddAxis(a1);
+    m_plot->AddAxis(a2);
 
     Series series1("Series1", Series::Doubles);
     series1.HorizontalAxis = wxString("Time");
-    series1.VerticalAxis = wxString("Signal1");
+    series1.VerticalAxis = wxString("Analog1");
     series1.Foreground = wxString("White");
     series1.Visible = true;
 
     {
         Series::Points pts;
         pts.reserve(100);
-        for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
         {
             double s = sin(timestamp * M_PI / 22.5) * 3.3;
             pts.push_back(wxRealPoint(timestamp, s));
@@ -178,16 +293,17 @@ wxPlottingFrame::wxPlottingFrame()
 
     m_plot->AddSeries(series1);
 
+
     Series series2("Series2", Series::Doubles);
     series2.HorizontalAxis = wxString("Time");
-    series2.VerticalAxis = wxString("Signal2");
+    series2.VerticalAxis = wxString("Analog2");
     series2.Foreground = wxString("White");
     series2.Visible = true;
 
     {
         Series::Points pts;
         pts.reserve(100);
-        for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
         {
             double s = cos(timestamp * M_PI / 22.5) * 3.3;
             pts.push_back(wxRealPoint(timestamp, s));
@@ -197,25 +313,182 @@ wxPlottingFrame::wxPlottingFrame()
 
     m_plot->AddSeries(series2);
 
-    Series series3("Series3", Series::Doubles);
-    series3.HorizontalAxis = wxString("Time");
-    series3.VerticalAxis = wxString("Signal3");
-    series3.Foreground = wxString("White");
-    series3.Visible = true;
+
+    Series d0_series("D0", Series::Doubles);
+    d0_series.HorizontalAxis = wxString("Time");
+    d0_series.VerticalAxis = wxString("D0");
+    d0_series.Foreground = wxString("White");
+    d0_series.Visible = true;
+    d0_series.RenderStyle = SeriesRenderStyle::StairStep;
 
     {
         Series::Points pts;
         pts.reserve(100);
-        for (double timestamp = 0; timestamp < 100.0; timestamp += 1.0)
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
         {
-            double s = (cos(timestamp * M_PI / 22.5) + sin(timestamp * M_PI / 22.5)) * 3.3;
-            pts.push_back(wxRealPoint(timestamp, s));
+            int v = (int)timestamp;
+            int v_b = (v & 0x01);
+
+            pts.push_back(wxRealPoint(timestamp, (double)v_b));
         }
-        series3.SetPoints(std::move(pts));
+        d0_series.SetPoints(std::move(pts));
     }
 
-    m_plot->AddSeries(series3);
+    m_plot->AddSeries(d0_series);
 
+    Series d1_series("D1", Series::Doubles);
+    d1_series.HorizontalAxis = wxString("Time");
+    d1_series.VerticalAxis = wxString("D1");
+    d1_series.Foreground = wxString("Red");
+    d1_series.Visible = true;
+    d1_series.RenderStyle = SeriesRenderStyle::StairStep;
+
+    {
+        Series::Points pts;
+        pts.reserve(100);
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
+        {
+            int v = (int)timestamp;
+            int v_b = (v & 0x02) >> 1;
+
+            pts.push_back(wxRealPoint(timestamp, (double)v_b));
+        }
+        d1_series.SetPoints(std::move(pts));
+    }
+
+    m_plot->AddSeries(d1_series);
+
+    Series d2_series("D2", Series::Doubles);
+    d2_series.HorizontalAxis = wxString("Time");
+    d2_series.VerticalAxis = wxString("D2");
+    d2_series.Foreground = wxString("Orange");
+    d2_series.Visible = true;
+    d2_series.RenderStyle = SeriesRenderStyle::StairStep;
+
+    {
+        Series::Points pts;
+        pts.reserve(100);
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
+        {
+            int v = (int)timestamp;
+            int v_b = (v & 0x04) >> 2;
+
+            pts.push_back(wxRealPoint(timestamp, (double)v_b));
+        }
+        d2_series.SetPoints(std::move(pts));
+    }
+
+    m_plot->AddSeries(d2_series);
+
+    Series d3_series("D3", Series::Doubles);
+    d3_series.HorizontalAxis = wxString("Time");
+    d3_series.VerticalAxis = wxString("D3");
+    d3_series.Foreground = wxString("Yellow");
+    d3_series.Visible = true;
+    d3_series.RenderStyle = SeriesRenderStyle::StairStep;
+
+    {
+        Series::Points pts;
+        pts.reserve(100);
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
+        {
+            int v = (int)timestamp;
+            int v_b = (v & 0x08) >> 3;
+
+            pts.push_back(wxRealPoint(timestamp, (double)v_b));
+        }
+        d3_series.SetPoints(std::move(pts));
+    }
+
+    m_plot->AddSeries(d3_series);
+
+    Series d4_series("D4", Series::Doubles);
+    d4_series.HorizontalAxis = wxString("Time");
+    d4_series.VerticalAxis = wxString("D4");
+    d4_series.Foreground = wxString("Cyan");
+    d4_series.Visible = true;
+    d4_series.RenderStyle = SeriesRenderStyle::StairStep;
+
+    {
+        Series::Points pts;
+        pts.reserve(100);
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
+        {
+            int v = (int)timestamp;
+            int v_b = (v & 0x10) >> 4;
+
+            pts.push_back(wxRealPoint(timestamp, (double)v_b));
+        }
+        d4_series.SetPoints(std::move(pts));
+    }
+
+    m_plot->AddSeries(d4_series);
+
+    Series d5_series("D5", Series::Doubles);
+    d5_series.HorizontalAxis = wxString("Time");
+    d5_series.VerticalAxis = wxString("D5");
+    d5_series.Foreground = wxString("Blue");
+    d5_series.Visible = true;
+    d5_series.RenderStyle = SeriesRenderStyle::StairStep;
+
+    {
+        Series::Points pts;
+        pts.reserve(100);
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
+        {
+            int v = (int)timestamp;
+            int v_b = (v & 0x20) >> 5;
+
+            pts.push_back(wxRealPoint(timestamp, (double)v_b));
+        }
+        d5_series.SetPoints(std::move(pts));
+    }
+
+    m_plot->AddSeries(d5_series);
+
+    Series d6_series("D6", Series::Doubles);
+    d6_series.HorizontalAxis = wxString("Time");
+    d6_series.VerticalAxis = wxString("D6");
+    d6_series.Foreground = wxString("Magenta");
+    d6_series.Visible = true;
+    d6_series.RenderStyle = SeriesRenderStyle::StairStep;
+
+    {
+        Series::Points pts;
+        pts.reserve(100);
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
+        {
+            int v = (int)timestamp;
+            int v_b = (v & 0x40) >> 6;
+
+            pts.push_back(wxRealPoint(timestamp, (double)v_b));
+        }
+        d6_series.SetPoints(std::move(pts));
+    }
+
+    m_plot->AddSeries(d6_series);
+
+    Series d7_series("D7", Series::Doubles);
+    d7_series.HorizontalAxis = wxString("Time");
+    d7_series.VerticalAxis = wxString("D7");
+    d7_series.Foreground = wxString("Grey");
+    d7_series.Visible = true;
+    d7_series.RenderStyle = SeriesRenderStyle::StairStep;
+
+    {
+        Series::Points pts;
+        pts.reserve(100);
+        for (double timestamp = 0; timestamp < 256; timestamp += 1.0)
+        {
+            int v = (int)timestamp;
+            int v_b = (v & 0x80) >> 7;
+
+            pts.push_back(wxRealPoint(timestamp, (double)v_b));
+        }
+        d7_series.SetPoints(std::move(pts));
+    }
+
+    m_plot->AddSeries(d7_series);
 
     m_plot->UpdatePlot();
 

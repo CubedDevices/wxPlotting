@@ -9,18 +9,6 @@
 
 #include "wx/pen.h"
 
-// ----------------------------------------------------------------------------
-// helpers
-// ----------------------------------------------------------------------------
-
-namespace
-{
-    void ApplySeriesPen(wxDC& dc, const Series& series)
-    {
-        wxPen pen(series.Foreground);
-        dc.SetPen(pen);
-    }
-} // namespace
 
 // ----------------------------------------------------------------------------
 // SeriesLineRenderer
@@ -31,7 +19,8 @@ void SeriesLineRenderer::Begin(wxDC& dc, const Series& series, const wxRect& plo
     m_dc = &dc;
     m_plot = plot;
     m_hasLast = false;
-    ApplySeriesPen(dc, series);
+    wxPen pen(series.Foreground);
+    dc.SetPen(pen);
 }
 
 void SeriesLineRenderer::AddPoint(const wxRealPoint& plotPt)
@@ -68,7 +57,8 @@ void SeriesStairStepRenderer::Begin(wxDC& dc, const Series& series, const wxRect
     m_dc = &dc;
     m_plot = plot;
     m_hasLast = false;
-    ApplySeriesPen(dc, series);
+    wxPen pen(series.Foreground);
+    dc.SetPen(pen);
 }
 
 void SeriesStairStepRenderer::AddPoint(const wxRealPoint& plotPt)

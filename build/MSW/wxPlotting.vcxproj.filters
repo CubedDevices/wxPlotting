@@ -15,30 +15,30 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="seriesrenderer.cpp">
+    <ClCompile Include="..\..\seriesrenderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="wxPlotting.cpp">
+    <ClCompile Include="..\..\wxPlotting.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="wxPlottingApp.cpp">
+    <ClCompile Include="..\..\wxPlottingApp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="wxPlotting.h">
+    <ClInclude Include="..\..\wxPlotting.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="wxPlottingApp.h">
+    <ClInclude Include="..\..\wxPlottingApp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="axis.h">
+    <ClInclude Include="..\..\axis.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="series.h">
+    <ClInclude Include="..\..\series.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="seriesrenderer.h">
+    <ClInclude Include="..\..\seriesrenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
