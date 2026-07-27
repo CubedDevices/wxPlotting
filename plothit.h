@@ -61,10 +61,10 @@ enum class PlotHitKind
  * @brief Outcome of a plot hit-test query.
  *
  * @details
- * **Axes** use region containment (the full valid-data rectangle of each
- * axis) **or** a hit on that axis's title label (same placement as drawing).
- * A pick in a multi-lane plot typically yields both a horizontal and a
- * vertical axis in @ref axes; picking a label alone yields that axis.
+ * **Axes** use strip containment from the plot band to the canvas borders
+ * (so ticks, tick labels, and titles in the margins count as the axis
+ * without separate geometry tests). A multi-lane pick typically yields both
+ * a horizontal and a vertical axis in @ref axes.
  *
  * **Series** use distance to the stroked polyline / stair-step within
  * @a tolerancePx. Series hits still populate @ref axes for the same point.
@@ -107,6 +107,35 @@ struct PlotHitResult
      * @details Valid when @ref kind is @ref PlotHitKind::Series.
      */
     wxRealPoint dataPoint;
+};
+
+/**
+ * @enum PlotCursorMode
+ * @brief Measurement-cursor overlay mode for @ref wxPlotting.
+ *
+ * @details Controlled externally via @ref wxPlotting::SetCursorMode.
+ *          When active, mouse motion tracks axes selected by hit-test strips
+ *          and draws guide lines with axis-range values near the pointer.
+ */
+enum class PlotCursorMode
+{
+    /** No measurement cursor. */
+    Off,
+
+    /**
+     * Vertical guide line tracking pointer X; value from the hit horizontal axis
+     * (e.g. Time) using that axis's data range / format.
+     */
+    Horizontal,
+
+    /**
+     * Horizontal guide line tracking pointer Y; value from the hit vertical axis
+     * (e.g. Analog1) using that axis's data range / format.
+     */
+    Vertical,
+
+    /** Both horizontal and vertical guides (crosshair) with both values. */
+    Combined
 };
 
 #endif // PLOTHIT_H

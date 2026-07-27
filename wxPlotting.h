@@ -20,6 +20,10 @@
 #include "series.h"
 #include "plothit.h"
 
+// turn on Series hit-testing.  slows down considerably
+// comment out to disable
+//#define WXPLOTTING_SERIES_HITTESTING
+
 /**
  * @class wxPlotting
  * @brief Owner-drawn plotting control with double-buffered MemoryDC rendering.
@@ -368,14 +372,32 @@ public:
      * @brief Hit-test a point already in unscrolled canvas/logical coordinates.
      * @param canvasPos Position in the same space as the off-screen buffer / @c m_plot.
      * @param tolerancePx Max distance in canvas pixels for series stroke hits
-     *        (axis hits use full valid-data region containment, not line distance).
+     *        (axis hits use strip containment to the canvas borders — band plus
+     *        margins for ticks/labels — not line distance).
      * @return Hit result. Priority for @ref PlotHitResult::kind: series stroke,
-     *         then axis region(s), then plot area. @ref PlotHitResult::axes always
-     *         lists every visible axis whose valid region contains the pick
+     *         then axis strip(s), then plot area. @ref PlotHitResult::axes always
+     *         lists every visible axis whose strip contains the pick
      *         (typically one horizontal and one vertical).
      * @see HitTest, PlotHitResult
      */
     PlotHitResult HitTestCanvas(const wxPoint& canvasPos, int tolerancePx = 6) const;
+
+    // --- Measurement cursors -----------------------------------------------
+
+    /**
+     * @brief Enable or change the measurement cursor overlay.
+     * @param mode @ref PlotCursorMode::Off disables tracking and hides guides.
+     * @details When not @c Off, the control tracks the mouse and draws guide
+     *          lines on paint (without re-rendering the full plot buffer).
+     * @note Call on the UI thread.
+     * @see GetCursorMode, PlotCursorMode
+     */
+    void SetCursorMode(PlotCursorMode mode);
+
+    /**
+     * @brief Get the current measurement cursor mode.
+     */
+    PlotCursorMode GetCursorMode() const { return m_cursorMode; }
 
 protected:
     /**
@@ -402,6 +424,16 @@ protected:
     void OnEraseBackground(wxEraseEvent& event);
 
     /**
+     * @brief Mouse motion: update measurement cursor tracking when enabled.
+     */
+    void OnMotion(wxMouseEvent& event);
+
+    /**
+     * @brief Mouse leave: hide measurement cursor until re-entry.
+     */
+    void OnLeaveWindow(wxMouseEvent& event);
+
+    /**
      * @brief Recreate the off-screen bitmap and update the plot rectangle.
      */
     void RecreateBuffer();
@@ -417,6 +449,12 @@ protected:
     void DrawSeries(wxMemoryDC& dc, const wxSize& size);
 
     /**
+     * @brief Draw measurement cursor overlay on the paint DC (after buffer blit).
+     * @param dc Paint DC already prepared for scroll.
+     */
+    void DrawCursors(wxDC& dc);
+
+    /**
      * @brief Sync effective drawing size from client size and minimum.
      * @return @c true if the effective drawing size changed.
      */
@@ -426,6 +464,11 @@ protected:
      * @brief Preferred client size for layout (matches minimum canvas).
      */
     wxSize DoGetBestClientSize() const override;
+
+    /**
+     * @brief Find first axis of @a type listed in a hit result.
+     */
+    const Axis* AxisOfTypeFromHit(const PlotHitResult& hit, Axis::AxisType type) const;
 
 private:
     std::list<Axis> m_axisList;
@@ -442,6 +485,11 @@ private:
 
     wxSize m_minDrawingSize;
     wxSize m_drawingSize;
+
+    // Measurement cursor overlay (drawn on paint DC, not baked into m_buffer).
+    PlotCursorMode m_cursorMode = PlotCursorMode::Off;
+    bool           m_cursorTracking = false; ///< True when pointer is over the control.
+    wxPoint        m_cursorCanvasPos;        ///< Last mouse position in canvas coords.
 
     wxDECLARE_DYNAMIC_CLASS(wxPlotting);
     wxDECLARE_EVENT_TABLE();

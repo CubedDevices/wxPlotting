@@ -136,9 +136,22 @@ public:
     /**
      * @brief printf-style format for tick values (one floating argument).
      * @details Examples: @c "%g", @c "%.0f", @c "%.2f", @c "%+0.1f".
-     *          Empty falls back to @c "%g" when formatting.
+     *          Empty falls back to @c "%g" when formatting via @ref FormatTickValue.
+     *          Used for axis tick labels and measurement-cursor readouts.
      */
     wxString TickLabelFormat;
+
+    /**
+     * @brief Format a data value with @ref TickLabelFormat (same as tick labels).
+     * @param value Data value in axis range units.
+     * @return Formatted string; empty format falls back to @c "%g".
+     */
+    wxString FormatTickValue(double value) const
+    {
+        if ( TickLabelFormat.IsEmpty() )
+            return wxString::Format(wxT("%g"), value);
+        return wxString::Format(TickLabelFormat, value);
+    }
 
     wxString Label;         ///< Axis title text (defaults to the axis name).
     bool     LabelVisible;  ///< Draw the axis title.
@@ -253,6 +266,23 @@ public:
 
         const double axisPoint = (realValue - m_rangeStart) / rangeSpan;
         return m_start + (axisPoint * (m_end - m_start));
+    }
+
+    /**
+     * @brief Inverse of @ref ConvertValue: plot-normalized position → data value.
+     * @param plotNorm Position in the axis span [@ref GetStart, @ref GetEnd]
+     *        (same space as @ref ConvertValue output / screen mapping input).
+     * @return Data value in [@ref GetRangeStart, @ref GetRangeEnd].
+     * @details Used by measurement cursors to report axis values under the pointer.
+     */
+    double InverseConvertValue(double plotNorm) const
+    {
+        const double axisSpan = m_end - m_start;
+        if ( axisSpan == 0.0 )
+            return (m_rangeStart + m_rangeEnd) * 0.5;
+
+        const double axisPoint = (plotNorm - m_start) / axisSpan;
+        return m_rangeStart + axisPoint * (m_rangeEnd - m_rangeStart);
     }
 
 protected:

@@ -35,6 +35,8 @@ wxBEGIN_EVENT_TABLE(wxPlotting, wxScrolledWindow)
     EVT_PAINT(wxPlotting::OnPaint)
     EVT_SIZE(wxPlotting::OnSize)
     EVT_ERASE_BACKGROUND(wxPlotting::OnEraseBackground)
+    EVT_MOTION(wxPlotting::OnMotion)
+    EVT_LEAVE_WINDOW(wxPlotting::OnLeaveWindow)
 wxEND_EVENT_TABLE()
 
 // ----------------------------------------------------------------------------
@@ -246,14 +248,6 @@ namespace
     const int kTickLength = 10;
     const int kLabelPad = 4;
 
-    wxString FormatTickValue(const Axis& axis, double value)
-    {
-        const wxString& fmt = axis.TickLabelFormat.IsEmpty()
-            ? wxString("%g")
-            : axis.TickLabelFormat;
-        return wxString::Format(fmt, value);
-    }
-
     int AxisTitleClearance(wxDC& dc, const Axis& axis, bool horizontal)
     {
         int clear = (axis.Width + 1) / 2 + kLabelPad;
@@ -273,8 +267,8 @@ namespace
             }
             else
             {
-                const wxString s0 = FormatTickValue(axis, axis.GetRangeStart());
-                const wxString s1 = FormatTickValue(axis, axis.GetRangeEnd());
+                const wxString s0 = axis.FormatTickValue(axis.GetRangeStart());
+                const wxString s1 = axis.FormatTickValue(axis.GetRangeEnd());
                 const int w0 = dc.GetTextExtent(s0).x;
                 const int w1 = dc.GetTextExtent(s1).x;
                 clear += wxMax(w0, w1) + kLabelPad;
@@ -286,89 +280,6 @@ namespace
         }
 
         return clear;
-    }
-
-    void AxisScreenEndpoints(const Axis& axis, const wxRect& plot,
-                             wxPoint& outStart, wxPoint& outEnd)
-    {
-        if ( axis.GetAxisType() == Axis::Horizontal )
-        {
-            outStart.x = plot.x + wxRound(axis.GetStart() * plot.GetWidth());
-            outStart.y = plot.y + plot.GetHeight()
-                       - wxRound(axis.GetLocation() * plot.GetHeight());
-            outEnd.x = plot.x + wxRound(axis.GetEnd() * plot.GetWidth());
-            outEnd.y = outStart.y;
-        }
-        else
-        {
-            outStart.x = plot.x + wxRound(axis.GetLocation() * plot.GetWidth());
-            outStart.y = plot.y + plot.GetHeight()
-                       - wxRound(axis.GetStart() * plot.GetHeight());
-            outEnd.x = outStart.x;
-            outEnd.y = plot.y + plot.GetHeight()
-                     - wxRound(axis.GetEnd() * plot.GetHeight());
-        }
-    }
-
-    // Axis title hit box in canvas coordinates (mirrors DrawPlot placement).
-    // Returns false if the axis has no drawable title.
-    bool AxisLabelHitRect(wxDC& dc, const Axis& axis, const wxRect& plot, wxRect& outRect)
-    {
-        if ( !axis.Visible || !axis.LabelVisible || axis.Label.IsEmpty() )
-            return false;
-        if ( axis.GetAxisType() != Axis::Horizontal &&
-             axis.GetAxisType() != Axis::Vertical )
-            return false;
-
-        wxPoint startPt, endPt;
-        AxisScreenEndpoints(axis, plot, startPt, endPt);
-
-        dc.SetFont(axis.LabelFont);
-        const wxSize textSize = dc.GetTextExtent(axis.Label);
-        const bool horizontal = (axis.GetAxisType() == Axis::Horizontal);
-        const int clear = AxisTitleClearance(dc, axis, horizontal);
-
-        if ( horizontal )
-        {
-            const int midX = (startPt.x + endPt.x) / 2;
-            const int labelX = midX - textSize.x / 2;
-            int labelY;
-            if ( axis.LabelSide == Axis::AboveOrRight )
-                labelY = startPt.y - clear - textSize.y;
-            else
-                labelY = startPt.y + clear;
-
-            outRect = wxRect(labelX, labelY, textSize.x, textSize.y);
-            return true;
-        }
-
-        // Vertical
-        const int midY = (startPt.y + endPt.y) / 2;
-        if ( axis.LabelRotated )
-        {
-            // 90°: occupies x in [ox, ox+h], y in [oy-w, oy]
-            const int w = textSize.x;
-            const int h = textSize.y;
-            const int oy = midY + w / 2;
-            int ox;
-            if ( axis.LabelSide == Axis::AboveOrRight )
-                ox = startPt.x + clear;
-            else
-                ox = startPt.x - clear - h;
-
-            outRect = wxRect(ox, oy - w, h, w);
-            return true;
-        }
-
-        const int labelY = midY - textSize.y / 2;
-        int labelX;
-        if ( axis.LabelSide == Axis::AboveOrRight )
-            labelX = startPt.x + clear;
-        else
-            labelX = startPt.x - clear - textSize.x;
-
-        outRect = wxRect(labelX, labelY, textSize.x, textSize.y);
-        return true;
     }
 
     double DistancePointToSegment(const wxPoint& p, const wxPoint& a, const wxPoint& b)
@@ -396,19 +307,23 @@ namespace
         return std::sqrt(dx * dx + dy * dy);
     }
 
-    // True if canvasPos lies in the axis's valid data region (not merely near
-    // the drawn axis line). Horizontal axes cover their X span across the
-    // full plot height; vertical axes cover their Y span across the full width.
-    bool AxisRegionContains(const Axis& axis, const wxRect& plot, const wxPoint& p)
+    // Axis hit region: the strip of valid plot positions for this axis,
+    // extended to the full canvas so ticks, tick labels, and titles in the
+    // margins are included without per-element geometry tests.
+    //
+    // Horizontal: X span [start,end] within m_plot, Y = entire canvas height.
+    // Vertical:   Y span [start,end] within m_plot, X = entire canvas width.
+    bool AxisRegionContains(const Axis& axis,
+                            const wxRect& plot,
+                            const wxSize& canvasSize,
+                            const wxPoint& p)
     {
         if ( plot.IsEmpty() || plot.GetWidth() <= 0 || plot.GetHeight() <= 0 )
             return false;
-        if ( !plot.Contains(p) )
+        if ( canvasSize.x <= 0 || canvasSize.y <= 0 )
             return false;
-
-        const double nx = (p.x - plot.x) / static_cast<double>(plot.GetWidth());
-        const double ny = 1.0
-            - (p.y - plot.y) / static_cast<double>(plot.GetHeight());
+        if ( p.x < 0 || p.y < 0 || p.x >= canvasSize.x || p.y >= canvasSize.y )
+            return false;
 
         double lo = axis.GetStart();
         double hi = axis.GetEnd();
@@ -420,17 +335,34 @@ namespace
         }
 
         if ( axis.GetAxisType() == Axis::Horizontal )
-            return nx >= lo && nx <= hi;
+        {
+            // Full canvas height covers bottom/top margin ticks and labels.
+            const int x0 = plot.x + wxRound(lo * plot.GetWidth());
+            const int x1 = plot.x + wxRound(hi * plot.GetWidth());
+            const int left = wxMin(x0, x1);
+            const int right = wxMax(x0, x1);
+            return p.x >= left && p.x <= right;
+        }
 
         if ( axis.GetAxisType() == Axis::Vertical )
-            return ny >= lo && ny <= hi;
+        {
+            // Full canvas width covers left/right margin ticks and labels.
+            // Y is inverted: larger normalized value is higher on screen.
+            const int yTop = plot.y + plot.GetHeight()
+                           - wxRound(hi * plot.GetHeight());
+            const int yBot = plot.y + plot.GetHeight()
+                           - wxRound(lo * plot.GetHeight());
+            const int top = wxMin(yTop, yBot);
+            const int bot = wxMax(yTop, yBot);
+            return p.y >= top && p.y <= bot;
+        }
 
         return false;
     }
 
-    void CollectAxesAtPoint(wxDC& dc,
-                            const std::list<Axis>& axes,
+    void CollectAxesAtPoint(const std::list<Axis>& axes,
                             const wxRect& plot,
+                            const wxSize& canvasSize,
                             const wxPoint& canvasPos,
                             std::vector<wxString>& outNames)
     {
@@ -439,17 +371,7 @@ namespace
         {
             if ( !axis.Visible )
                 continue;
-
-            bool hit = AxisRegionContains(axis, plot, canvasPos);
-            if ( !hit )
-            {
-                wxRect labelRect;
-                if ( AxisLabelHitRect(dc, axis, plot, labelRect) &&
-                     labelRect.Contains(canvasPos) )
-                    hit = true;
-            }
-
-            if ( hit )
+            if ( AxisRegionContains(axis, plot, canvasSize, canvasPos) )
                 outNames.push_back(axis.GetName());
         }
     }
@@ -599,14 +521,11 @@ PlotHitResult wxPlotting::HitTestCanvas(const wxPoint& canvasPos, int toleranceP
     if ( tolerancePx < 0 )
         tolerancePx = 0;
 
-    // Metrics for axis title hit boxes (same fonts as drawing).
-    wxClientDC labelDc(const_cast<wxPlotting*>(this));
+    // Axes: full strips to the canvas borders (covers plot band + margins for
+    // ticks, tick labels, and titles). No per-label/per-tick geometry.
+    CollectAxesAtPoint(m_axisList, m_plot, m_drawingSize, canvasPos, result.axes);
 
-    // Axes: valid-data region and/or axis title label. A pick over data often
-    // yields one horizontal and one vertical axis; a pick on a title alone
-    // yields that axis (useful for dragging the label).
-    CollectAxesAtPoint(labelDc, m_axisList, m_plot, canvasPos, result.axes);
-
+ #ifdef WXPLOTTING_SERIES_HITTESTING
     // --- Series (front-most first: reverse draw order) ---------------------
     for ( auto it = m_seriesList.rbegin(); it != m_seriesList.rend(); ++it )
     {
@@ -631,6 +550,7 @@ PlotHitResult wxPlotting::HitTestCanvas(const wxPoint& canvasPos, int toleranceP
             return result;
         }
     }
+#endif
 
     // --- Axes only (region hit, no series stroke) --------------------------
     if ( !result.axes.empty() )
@@ -1038,7 +958,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
                         dc.SetFont(iter->TickFont);
                         dc.SetTextForeground(iter->TickColor);
 
-                        const wxString text = FormatTickValue(*iter, t_start);
+                        const wxString text = iter->FormatTickValue(t_start);
                         const wxSize ts = dc.GetTextExtent(text);
 
                         int tx = 0;
@@ -1171,6 +1091,9 @@ void wxPlotting::OnPaint(wxPaintEvent& WXUNUSED(event))
 
     if ( m_buffer.IsOk() )
         dc.DrawBitmap(m_buffer, 0, 0, false);
+
+    // Cursors are an overlay — not baked into the buffer (cheap mouse tracking).
+    DrawCursors(dc);
 }
 
 void wxPlotting::OnSize(wxSizeEvent& event)
@@ -1190,4 +1113,141 @@ void wxPlotting::OnEraseBackground(wxEraseEvent& WXUNUSED(event))
 {
     // Intentional no-op: painting is fully handled in OnPaint via the
     // off-screen MemoryDC buffer, which avoids flicker.
+}
+
+void wxPlotting::OnMotion(wxMouseEvent& event)
+{
+    if ( m_cursorMode != PlotCursorMode::Off )
+    {
+        int cx = event.GetX();
+        int cy = event.GetY();
+        CalcUnscrolledPosition(event.GetX(), event.GetY(), &cx, &cy);
+        m_cursorCanvasPos = wxPoint(cx, cy);
+        m_cursorTracking = true;
+        // Overlay only — do not re-render the full plot buffer.
+        Refresh(false);
+    }
+    event.Skip();
+}
+
+void wxPlotting::OnLeaveWindow(wxMouseEvent& event)
+{
+    if ( m_cursorMode != PlotCursorMode::Off && m_cursorTracking )
+    {
+        m_cursorTracking = false;
+        Refresh(false);
+    }
+    event.Skip();
+}
+
+// ----------------------------------------------------------------------------
+// measurement cursors
+// ----------------------------------------------------------------------------
+
+void wxPlotting::SetCursorMode(PlotCursorMode mode)
+{
+    if ( m_cursorMode == mode )
+        return;
+
+    m_cursorMode = mode;
+    if ( m_cursorMode == PlotCursorMode::Off )
+        m_cursorTracking = false;
+
+    Refresh(false);
+}
+
+const Axis* wxPlotting::AxisOfTypeFromHit(const PlotHitResult& hit,
+                                          Axis::AxisType type) const
+{
+    for ( const wxString& name : hit.axes )
+    {
+        const Axis* axis = GetAxis(name);
+        if ( axis && axis->GetAxisType() == type && axis->Visible )
+            return axis;
+    }
+    return nullptr;
+}
+
+void wxPlotting::DrawCursors(wxDC& dc)
+{
+    if ( m_cursorMode == PlotCursorMode::Off || !m_cursorTracking )
+        return;
+    if ( m_plot.IsEmpty() || m_plot.GetWidth() <= 0 || m_plot.GetHeight() <= 0 )
+        return;
+
+    // Select axes from the same strip hit-test used for interaction.
+    const PlotHitResult hit = HitTestCanvas(m_cursorCanvasPos, 0);
+    const Axis* horzAxis = AxisOfTypeFromHit(hit, Axis::Horizontal);
+    const Axis* vertAxis = AxisOfTypeFromHit(hit, Axis::Vertical);
+
+    const bool wantH = (m_cursorMode == PlotCursorMode::Horizontal ||
+                        m_cursorMode == PlotCursorMode::Combined);
+    const bool wantV = (m_cursorMode == PlotCursorMode::Vertical ||
+                        m_cursorMode == PlotCursorMode::Combined);
+
+    // Clamp guide lines to the data rectangle.
+    int x = m_cursorCanvasPos.x;
+    int y = m_cursorCanvasPos.y;
+    if ( x < m_plot.GetLeft() ) x = m_plot.GetLeft();
+    if ( x > m_plot.GetRight() ) x = m_plot.GetRight();
+    if ( y < m_plot.GetTop() ) y = m_plot.GetTop();
+    if ( y > m_plot.GetBottom() ) y = m_plot.GetBottom();
+
+    const double plotNormX =
+        (x - m_plot.x) / static_cast<double>(m_plot.GetWidth());
+    const double plotNormY =
+        1.0 - (y - m_plot.y) / static_cast<double>(m_plot.GetHeight());
+
+    wxPen cursorPen(wxColour(255, 255, 0), 1, wxPENSTYLE_DOT);
+    dc.SetPen(cursorPen);
+    dc.SetBrush(*wxTRANSPARENT_BRUSH);
+    dc.SetTextForeground(wxColour(255, 255, 0));
+    dc.SetFont(GetFont());
+
+    wxString labelH;
+    wxString labelV;
+
+    // Horizontal cursor mode → vertical tracking line + H-axis value.
+    // Value uses the axis TickLabelFormat (same as tick labels).
+    if ( wantH && horzAxis )
+    {
+        dc.DrawLine(x, m_plot.GetTop(), x, m_plot.GetBottom());
+        const double dataX = horzAxis->InverseConvertValue(plotNormX);
+        labelH = horzAxis->FormatTickValue(dataX);
+    }
+
+    // Vertical cursor mode → horizontal tracking line + V-axis value.
+    if ( wantV && vertAxis )
+    {
+        dc.DrawLine(m_plot.GetLeft(), y, m_plot.GetRight(), y);
+        const double dataY = vertAxis->InverseConvertValue(plotNormY);
+        labelV = vertAxis->FormatTickValue(dataY);
+    }
+
+    // Compose readout near the pointer (offset so it is not under the cursor).
+    wxString readout;
+    if ( !labelH.IsEmpty() && !labelV.IsEmpty() )
+        readout = labelH + wxT(", ") + labelV;
+    else if ( !labelH.IsEmpty() )
+        readout = labelH;
+    else if ( !labelV.IsEmpty() )
+        readout = labelV;
+
+    if ( !readout.IsEmpty() )
+    {
+        const wxSize ts = dc.GetTextExtent(readout);
+        int tx = x + 10;
+        int ty = y - ts.y - 6;
+        if ( tx + ts.x > m_plot.GetRight() )
+            tx = x - ts.x - 10;
+        if ( ty < m_plot.GetTop() )
+            ty = y + 6;
+
+        // Slight backdrop for readability on dense plots.
+        dc.SetPen(*wxTRANSPARENT_PEN);
+        dc.SetBrush(wxBrush(wxColour(0, 0, 0, 160)));
+        dc.DrawRectangle(tx - 2, ty - 1, ts.x + 4, ts.y + 2);
+        dc.SetTextForeground(wxColour(255, 255, 0));
+        dc.DrawText(readout, tx, ty);
+    }
 }

@@ -54,6 +54,12 @@ wxBEGIN_EVENT_TABLE(wxPlottingFrame, wxFrame)
                    wxPlottingFrame::OnSeriesMenu)
     EVT_UPDATE_UI_RANGE(ID_SERIES_VISIBLE, ID_SERIES_VERT_AXIS,
                         wxPlottingFrame::OnSeriesUpdateUI)
+
+    // Measurement cursor modes
+    EVT_MENU_RANGE(ID_CURSOR_OFF, ID_CURSOR_COMBINED,
+                   wxPlottingFrame::OnCursorMenu)
+    EVT_UPDATE_UI_RANGE(ID_CURSOR_OFF, ID_CURSOR_COMBINED,
+                        wxPlottingFrame::OnCursorUpdateUI)
 wxEND_EVENT_TABLE()
 
 wxPlottingFrame::wxPlottingFrame()
@@ -71,6 +77,7 @@ wxPlottingFrame::wxPlottingFrame()
     wxMenuBar* menuBar = new wxMenuBar;
     menuBar->Append(fileMenu, "&File");
     BuildPropertyMenus(menuBar);
+    BuildCursorMenu(menuBar);
     menuBar->Append(helpMenu, "&Help");
     SetMenuBar(menuBar);
 
@@ -83,18 +90,18 @@ wxPlottingFrame::wxPlottingFrame()
     m_plot = new wxPlotting(this, wxID_ANY);
 
     Axis timeAxis("Time", Axis::Horizontal);
-    timeAxis.Foreground = (wxColor("Green"));
+    timeAxis.Foreground = (wxColor("Lime"));
     timeAxis.Visible = true;
     timeAxis.LabelVisible = true;
     timeAxis.Width = 3;
-    timeAxis.LabelColor = wxColor("Green");
+    timeAxis.LabelColor = wxColor("Lime");
     timeAxis.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
     timeAxis.LabelSide = Axis::BelowOrLeft;
     timeAxis.SetLocation(0.0);
     timeAxis.SetPosition(0.0, 1.0);
     timeAxis.SetRange(0, 256); // 0 to 100 seconds
     timeAxis.TickRange = 10; // tick every 10 seconds
-    timeAxis.TickColor = wxColor("Green");
+    timeAxis.TickColor = wxColor("Lime");
     timeAxis.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
     timeAxis.TickVisible = true;
     timeAxis.TickLabelVisible = true;
@@ -224,12 +231,12 @@ wxPlottingFrame::wxPlottingFrame()
 
     Axis d4("D4", Axis::Vertical);
     d4.Visible = true;
-    d4.Foreground = wxColor("Cyan");
+    d4.Foreground = wxColor("Lime");
     d4.GridVisible = false;
     d4.GridStyle = wxPENSTYLE_SOLID;
-    d4.GridColor = wxColor("Cyan").ChangeLightness(150);
+    d4.GridColor = wxColor("Lime").ChangeLightness(150);
     d4.Label = "D4";
-    d4.LabelColor = wxColor("Cyan");
+    d4.LabelColor = wxColor("Lime");
     d4.LabelVisible = true;
     d4.LabelSide = Axis::BelowOrLeft;
     d4.SetLocation(0);
@@ -241,12 +248,12 @@ wxPlottingFrame::wxPlottingFrame()
 
     Axis d5("D5", Axis::Vertical);
     d5.Visible = true;
-    d5.Foreground = wxColor("Blue");
+    d5.Foreground = wxColor("Cyan");
     d5.GridVisible = false;
     d5.GridStyle = wxPENSTYLE_SOLID;
-    d5.GridColor = wxColor("Blue").ChangeLightness(150);
+    d5.GridColor = wxColor("Cyan").ChangeLightness(150);
     d5.Label = "D5";
-    d5.LabelColor = wxColor("Blue");
+    d5.LabelColor = wxColor("Cyan");
     d5.LabelVisible = true;
     d5.LabelSide = Axis::BelowOrLeft;
     d5.SetLocation(0);
@@ -297,7 +304,7 @@ wxPlottingFrame::wxPlottingFrame()
     Series series1("Series1", Series::Doubles);
     series1.HorizontalAxis = wxString("Time");
     series1.VerticalAxis = wxString("Analog1");
-    series1.Foreground = wxString("White");
+    series1.Foreground = wxColor("White");
     series1.Visible = true;
 
     {
@@ -317,7 +324,7 @@ wxPlottingFrame::wxPlottingFrame()
     Series series2("Series2", Series::Doubles);
     series2.HorizontalAxis = wxString("Time");
     series2.VerticalAxis = wxString("Analog2");
-    series2.Foreground = wxString("White");
+    series2.Foreground = wxColor("White");
     series2.Visible = true;
 
     {
@@ -337,7 +344,7 @@ wxPlottingFrame::wxPlottingFrame()
     Series d0_series("D0", Series::Doubles);
     d0_series.HorizontalAxis = wxString("Time");
     d0_series.VerticalAxis = wxString("D0");
-    d0_series.Foreground = wxString("White");
+    d0_series.Foreground = wxColor("White");
     d0_series.Visible = true;
     d0_series.RenderStyle = SeriesRenderStyle::StairStep;
 
@@ -359,7 +366,7 @@ wxPlottingFrame::wxPlottingFrame()
     Series d1_series("D1", Series::Doubles);
     d1_series.HorizontalAxis = wxString("Time");
     d1_series.VerticalAxis = wxString("D1");
-    d1_series.Foreground = wxString("Red");
+    d1_series.Foreground = wxColor("Red");
     d1_series.Visible = true;
     d1_series.RenderStyle = SeriesRenderStyle::StairStep;
 
@@ -381,7 +388,7 @@ wxPlottingFrame::wxPlottingFrame()
     Series d2_series("D2", Series::Doubles);
     d2_series.HorizontalAxis = wxString("Time");
     d2_series.VerticalAxis = wxString("D2");
-    d2_series.Foreground = wxString("Orange");
+    d2_series.Foreground = wxColor("Orange");
     d2_series.Visible = true;
     d2_series.RenderStyle = SeriesRenderStyle::StairStep;
 
@@ -403,7 +410,7 @@ wxPlottingFrame::wxPlottingFrame()
     Series d3_series("D3", Series::Doubles);
     d3_series.HorizontalAxis = wxString("Time");
     d3_series.VerticalAxis = wxString("D3");
-    d3_series.Foreground = wxString("Yellow");
+    d3_series.Foreground = wxColor("Yellow");
     d3_series.Visible = true;
     d3_series.RenderStyle = SeriesRenderStyle::StairStep;
 
@@ -425,7 +432,7 @@ wxPlottingFrame::wxPlottingFrame()
     Series d4_series("D4", Series::Doubles);
     d4_series.HorizontalAxis = wxString("Time");
     d4_series.VerticalAxis = wxString("D4");
-    d4_series.Foreground = wxString("Cyan");
+    d4_series.Foreground = wxColor("Lime");
     d4_series.Visible = true;
     d4_series.RenderStyle = SeriesRenderStyle::StairStep;
 
@@ -447,7 +454,7 @@ wxPlottingFrame::wxPlottingFrame()
     Series d5_series("D5", Series::Doubles);
     d5_series.HorizontalAxis = wxString("Time");
     d5_series.VerticalAxis = wxString("D5");
-    d5_series.Foreground = wxString("Blue");
+    d5_series.Foreground = wxColor("Cyan");
     d5_series.Visible = true;
     d5_series.RenderStyle = SeriesRenderStyle::StairStep;
 
@@ -469,7 +476,7 @@ wxPlottingFrame::wxPlottingFrame()
     Series d6_series("D6", Series::Doubles);
     d6_series.HorizontalAxis = wxString("Time");
     d6_series.VerticalAxis = wxString("D6");
-    d6_series.Foreground = wxString("Magenta");
+    d6_series.Foreground = wxColor("Magenta");
     d6_series.Visible = true;
     d6_series.RenderStyle = SeriesRenderStyle::StairStep;
 
@@ -491,7 +498,7 @@ wxPlottingFrame::wxPlottingFrame()
     Series d7_series("D7", Series::Doubles);
     d7_series.HorizontalAxis = wxString("Time");
     d7_series.VerticalAxis = wxString("D7");
-    d7_series.Foreground = wxString("Grey");
+    d7_series.Foreground = wxColor("Grey");
     d7_series.Visible = true;
     d7_series.RenderStyle = SeriesRenderStyle::StairStep;
 
@@ -544,6 +551,8 @@ void wxPlottingFrame::OnAbout(wxCommandEvent& WXUNUSED(event))
         "while keeping its height (start/end span) fixed.\n"
         "• Mouse wheel over Analog1/Analog2 zooms that axis data range "
         "by 25% (up = zoom in, down = zoom out).\n"
+        "• Use the Cursor menu for measurement guides (horizontal, "
+        "vertical, or combined crosshair) with axis values near the pointer.\n"
         "• Use the Axis and Series menus to edit Analog1 and Series1.",
         "About wxPlotting",
         wxOK | wxICON_INFORMATION,
@@ -656,6 +665,20 @@ void wxPlottingFrame::BuildPropertyMenus(wxMenuBar* menuBar)
 
     menuBar->Append(axisMenu, "&Axis");
     menuBar->Append(seriesMenu, "&Series");
+}
+
+void wxPlottingFrame::BuildCursorMenu(wxMenuBar* menuBar)
+{
+    wxMenu* cursorMenu = new wxMenu;
+    cursorMenu->AppendRadioItem(ID_CURSOR_OFF, "&Off",
+                                "Hide measurement cursors");
+    cursorMenu->AppendRadioItem(ID_CURSOR_HORIZONTAL, "&Horizontal",
+                                "Vertical guide line; horizontal-axis value at pointer");
+    cursorMenu->AppendRadioItem(ID_CURSOR_VERTICAL, "&Vertical",
+                                "Horizontal guide line; vertical-axis value at pointer");
+    cursorMenu->AppendRadioItem(ID_CURSOR_COMBINED, "&Combined",
+                                "Crosshair with both axis values");
+    menuBar->Append(cursorMenu, "&Cursor");
 }
 
 Axis* wxPlottingFrame::DemoAxis() const
@@ -1063,6 +1086,80 @@ void wxPlottingFrame::OnSeriesUpdateUI(wxUpdateUIEvent& event)
             break;
         case ID_SERIES_STYLE_STAIR:
             event.Check(series->RenderStyle == SeriesRenderStyle::StairStep);
+            break;
+        default:
+            break;
+    }
+}
+
+void wxPlottingFrame::OnCursorMenu(wxCommandEvent& event)
+{
+    if ( !m_plot )
+        return;
+
+    PlotCursorMode mode = PlotCursorMode::Off;
+    switch ( event.GetId() )
+    {
+        case ID_CURSOR_OFF:
+            mode = PlotCursorMode::Off;
+            break;
+        case ID_CURSOR_HORIZONTAL:
+            mode = PlotCursorMode::Horizontal;
+            break;
+        case ID_CURSOR_VERTICAL:
+            mode = PlotCursorMode::Vertical;
+            break;
+        case ID_CURSOR_COMBINED:
+            mode = PlotCursorMode::Combined;
+            break;
+        default:
+            return;
+    }
+
+    m_plot->SetCursorMode(mode);
+
+    switch ( mode )
+    {
+        case PlotCursorMode::Horizontal:
+            SetStatusText(wxT("Cursor: Horizontal — vertical guide, H-axis value"));
+            break;
+        case PlotCursorMode::Vertical:
+            SetStatusText(wxT("Cursor: Vertical — horizontal guide, V-axis value"));
+            break;
+        case PlotCursorMode::Combined:
+            SetStatusText(wxT("Cursor: Combined — crosshair with both axis values"));
+            break;
+        case PlotCursorMode::Off:
+        default:
+            SetStatusText(wxT("Cursor: Off"));
+            break;
+    }
+}
+
+void wxPlottingFrame::OnCursorUpdateUI(wxUpdateUIEvent& event)
+{
+    if ( !m_plot )
+    {
+        event.Enable(false);
+        return;
+    }
+
+    event.Enable(true);
+    const PlotCursorMode mode = m_plot->GetCursorMode();
+
+    switch ( event.GetId() )
+    {
+        case ID_CURSOR_OFF:
+            event.Check(mode == PlotCursorMode::Off);
+            break;
+        case ID_CURSOR_HORIZONTAL:
+            event.Check(mode == PlotCursorMode::Horizontal);
+            break;
+        case ID_CURSOR_VERTICAL:
+            event.Check(mode == PlotCursorMode::Vertical);
+            break;
+        case ID_CURSOR_COMBINED:
+            event.Check(mode == PlotCursorMode::Combined);
             break;
         default:
             break;
