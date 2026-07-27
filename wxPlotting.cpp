@@ -525,6 +525,7 @@ PlotHitResult wxPlotting::HitTestCanvas(const wxPoint& canvasPos, int toleranceP
     // ticks, tick labels, and titles). No per-label/per-tick geometry.
     CollectAxesAtPoint(m_axisList, m_plot, m_drawingSize, canvasPos, result.axes);
 
+ #ifdef WXPLOTTING_SERIES_HITTESTING
     // --- Series (front-most first: reverse draw order) ---------------------
     for ( auto it = m_seriesList.rbegin(); it != m_seriesList.rend(); ++it )
     {
@@ -549,6 +550,7 @@ PlotHitResult wxPlotting::HitTestCanvas(const wxPoint& canvasPos, int toleranceP
             return result;
         }
     }
+#endif
 
     // --- Axes only (region hit, no series stroke) --------------------------
     if ( !result.axes.empty() )

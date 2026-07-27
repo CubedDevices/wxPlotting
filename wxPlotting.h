@@ -20,6 +20,10 @@
 #include "series.h"
 #include "plothit.h"
 
+// turn on Series hit-testing.  slows down considerably
+// comment out to disable
+//#define WXPLOTTING_SERIES_HITTESTING
+
 /**
  * @class wxPlotting
  * @brief Owner-drawn plotting control with double-buffered MemoryDC rendering.

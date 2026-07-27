@@ -90,18 +90,18 @@ wxPlottingFrame::wxPlottingFrame()
     m_plot = new wxPlotting(this, wxID_ANY);
 
     Axis timeAxis("Time", Axis::Horizontal);
-    timeAxis.Foreground = (wxColor("Green"));
+    timeAxis.Foreground = (wxColor("Lime"));
     timeAxis.Visible = true;
     timeAxis.LabelVisible = true;
     timeAxis.Width = 3;
-    timeAxis.LabelColor = wxColor("Green");
+    timeAxis.LabelColor = wxColor("Lime");
     timeAxis.LabelFont = wxFont(wxFontInfo(14).Family(wxFONTFAMILY_MODERN).Bold());
     timeAxis.LabelSide = Axis::BelowOrLeft;
     timeAxis.SetLocation(0.0);
     timeAxis.SetPosition(0.0, 1.0);
     timeAxis.SetRange(0, 256); // 0 to 100 seconds
     timeAxis.TickRange = 10; // tick every 10 seconds
-    timeAxis.TickColor = wxColor("Green");
+    timeAxis.TickColor = wxColor("Lime");
     timeAxis.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
     timeAxis.TickVisible = true;
     timeAxis.TickLabelVisible = true;
@@ -231,12 +231,12 @@ wxPlottingFrame::wxPlottingFrame()
 
     Axis d4("D4", Axis::Vertical);
     d4.Visible = true;
-    d4.Foreground = wxColor("Cyan");
+    d4.Foreground = wxColor("Lime");
     d4.GridVisible = false;
     d4.GridStyle = wxPENSTYLE_SOLID;
-    d4.GridColor = wxColor("Cyan").ChangeLightness(150);
+    d4.GridColor = wxColor("Lime").ChangeLightness(150);
     d4.Label = "D4";
-    d4.LabelColor = wxColor("Cyan");
+    d4.LabelColor = wxColor("Lime");
     d4.LabelVisible = true;
     d4.LabelSide = Axis::BelowOrLeft;
     d4.SetLocation(0);
@@ -248,12 +248,12 @@ wxPlottingFrame::wxPlottingFrame()
 
     Axis d5("D5", Axis::Vertical);
     d5.Visible = true;
-    d5.Foreground = wxColor("Blue");
+    d5.Foreground = wxColor("Cyan");
     d5.GridVisible = false;
     d5.GridStyle = wxPENSTYLE_SOLID;
-    d5.GridColor = wxColor("Blue").ChangeLightness(150);
+    d5.GridColor = wxColor("Cyan").ChangeLightness(150);
     d5.Label = "D5";
-    d5.LabelColor = wxColor("Blue");
+    d5.LabelColor = wxColor("Cyan");
     d5.LabelVisible = true;
     d5.LabelSide = Axis::BelowOrLeft;
     d5.SetLocation(0);
@@ -432,7 +432,7 @@ wxPlottingFrame::wxPlottingFrame()
     Series d4_series("D4", Series::Doubles);
     d4_series.HorizontalAxis = wxString("Time");
     d4_series.VerticalAxis = wxString("D4");
-    d4_series.Foreground = wxColor("Cyan");
+    d4_series.Foreground = wxColor("Lime");
     d4_series.Visible = true;
     d4_series.RenderStyle = SeriesRenderStyle::StairStep;
 
@@ -454,7 +454,7 @@ wxPlottingFrame::wxPlottingFrame()
     Series d5_series("D5", Series::Doubles);
     d5_series.HorizontalAxis = wxString("Time");
     d5_series.VerticalAxis = wxString("D5");
-    d5_series.Foreground = wxColor("Blue");
+    d5_series.Foreground = wxColor("Cyan");
     d5_series.Visible = true;
     d5_series.RenderStyle = SeriesRenderStyle::StairStep;
 
