@@ -29,10 +29,13 @@
  * Configure on the UI thread, then call @ref wxPlotting::UpdatePlot.
  *
  * **Coordinate model**
- * - @ref SetRange maps real-world values (e.g. seconds, volts).
+ * - Series store raw sample values (e.g. seconds, ADC counts).
+ * - @ref Scale multiplies raw samples before they are compared to @ref SetRange
+ *   (e.g. Scale = 1000 maps second-samples onto a millisecond range).
+ * - @ref SetRange is in scaled units (tick labels and cursors use this space).
  * - @ref SetPosition sets the axis extent in normalized plot space [0, 1].
  * - @ref SetLocation places the axis line across the perpendicular direction.
- * - @ref ConvertValue maps a data value into normalized plot space.
+ * - @ref ConvertValue maps a raw data value (via Scale) into normalized plot space.
  */
 class Axis
 {
@@ -178,7 +181,15 @@ public:
 
     int      GridWidth;     ///< Grid line width in pixels.
 
-    double   Scale;         ///< Reserved for future scaling; not used by drawing yet.
+    /**
+     * @brief Multiplier applied to raw series samples before range mapping.
+     * @details @ref ConvertValue uses @c rawValue * Scale when placing points.
+     *          Tick labels, grids, and measurement cursors remain in range units
+     *          (the scaled domain). Example: data in seconds, @c Scale = 1000,
+     *          @ref SetRange in milliseconds. Default is @c 1.0 (no scaling).
+     * @note Not mutex-protected; set on the UI thread, then @ref wxPlotting::UpdatePlot.
+     */
+    double   Scale;
 
     /**
      * @brief Set the axis extent in normalized plot space.
@@ -208,9 +219,11 @@ public:
     }
 
     /**
-     * @brief Set the data value range mapped onto the axis.
-     * @param start Data value at the axis start (e.g. 0 seconds, -3.3 V).
-     * @param end Data value at the axis end (e.g. 100 seconds, +3.3 V).
+     * @brief Set the value range mapped onto the axis (scaled / display units).
+     * @param start Value at the axis start (e.g. 0 ms, -3.3 V).
+     * @param end Value at the axis end (e.g. 256000 ms, +3.3 V).
+     * @details Raw series samples are multiplied by @ref Scale before they are
+     *          compared to this range and mapped to the plot.
      * @warning If @a start equals @a end, @ref ConvertValue returns the
      *          midpoint of the axis span (no divide-by-zero).
      */
@@ -221,17 +234,41 @@ public:
     }
 
     /**
-     * @brief Get the data range start.
+     * @brief Get the range start (scaled / display units).
      */
     double GetRangeStart() const {
         return m_rangeStart;
     }
 
     /**
-     * @brief Get the data range end.
+     * @brief Get the range end (scaled / display units).
      */
     double GetRangeEnd() const {
         return m_rangeEnd;
+    }
+
+    /**
+     * @brief Apply @ref Scale to a raw series sample.
+     * @param realValue Sample coordinate as stored on the series (unscaled).
+     * @return @c realValue * Scale (range / display units).
+     */
+    double ApplyScale(double realValue) const
+    {
+        return realValue * Scale;
+    }
+
+    /**
+     * @brief True if the scaled sample lies within [@ref GetRangeStart, @ref GetRangeEnd].
+     * @param realValue Raw series sample (unscaled).
+     * @details Uses the same inclusive bounds as series clipping when drawing.
+     *          Supports inverted ranges (@c end < @c start).
+     */
+    bool IsValueInRange(double realValue) const
+    {
+        const double scaled = ApplyScale(realValue);
+        if ( m_rangeStart <= m_rangeEnd )
+            return scaled >= m_rangeStart && scaled <= m_rangeEnd;
+        return scaled >= m_rangeEnd && scaled <= m_rangeStart;
     }
 
     /**
@@ -252,28 +289,32 @@ public:
     }
 
     /**
-     * @brief Map a data value into normalized plot coordinates along this axis.
-     * @param realValue Value in data units (same space as @ref SetRange).
+     * @brief Map a raw series sample into normalized plot coordinates.
+     * @param realValue Sample as stored on the series (unscaled).
      * @return Position in the axis span [@ref GetStart, @ref GetEnd].
-     * @details If the data range width is zero, returns the midpoint of the
-     *          axis span instead of dividing by zero.
+     * @details Applies @ref Scale first, then maps the scaled value through
+     *          [@ref GetRangeStart, @ref GetRangeEnd]. If the range width is
+     *          zero, returns the midpoint of the axis span.
      */
     double ConvertValue(double realValue) const
     {
+        const double scaled = ApplyScale(realValue);
         const double rangeSpan = m_rangeEnd - m_rangeStart;
         if ( rangeSpan == 0.0 )
             return (m_start + m_end) * 0.5;
 
-        const double axisPoint = (realValue - m_rangeStart) / rangeSpan;
+        const double axisPoint = (scaled - m_rangeStart) / rangeSpan;
         return m_start + (axisPoint * (m_end - m_start));
     }
 
     /**
-     * @brief Inverse of @ref ConvertValue: plot-normalized position → data value.
+     * @brief Inverse of @ref ConvertValue: plot-normalized position → range units.
      * @param plotNorm Position in the axis span [@ref GetStart, @ref GetEnd]
      *        (same space as @ref ConvertValue output / screen mapping input).
-     * @return Data value in [@ref GetRangeStart, @ref GetRangeEnd].
-     * @details Used by measurement cursors to report axis values under the pointer.
+     * @return Value in scaled / display units ([@ref GetRangeStart, @ref GetRangeEnd]).
+     * @details Used by measurement cursors (matches tick labels). Does not
+     *          divide by @ref Scale; for the original series sample, use
+     *          @c result / Scale when Scale is non-zero.
      */
     double InverseConvertValue(double plotNorm) const
     {
