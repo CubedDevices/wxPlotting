@@ -260,7 +260,8 @@ void wxPlotting::ArrangeAxesOfType(Axis::AxisType type, double spacing, bool top
             continue;
         if ( axis.GetAxisType() != type )
             continue;
-        axes.push_back(&axis);
+        axes.insert(axes.begin(), &axis);
+        //axes.push_back(&axis);
     }
 
     const size_t n = axes.size();
