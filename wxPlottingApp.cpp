@@ -60,6 +60,10 @@ wxBEGIN_EVENT_TABLE(wxPlottingFrame, wxFrame)
                    wxPlottingFrame::OnCursorMenu)
     EVT_UPDATE_UI_RANGE(ID_CURSOR_OFF, ID_CURSOR_COMBINED,
                         wxPlottingFrame::OnCursorUpdateUI)
+
+    // Axis auto-arrange
+    EVT_MENU(ID_ARRANGE_VERTICAL,   wxPlottingFrame::OnArrangeMenu)
+    EVT_MENU(ID_ARRANGE_HORIZONTAL, wxPlottingFrame::OnArrangeMenu)
 wxEND_EVENT_TABLE()
 
 wxPlottingFrame::wxPlottingFrame()
@@ -78,6 +82,7 @@ wxPlottingFrame::wxPlottingFrame()
     menuBar->Append(fileMenu, "&File");
     BuildPropertyMenus(menuBar);
     BuildCursorMenu(menuBar);
+    BuildArrangeMenu(menuBar);
     menuBar->Append(helpMenu, "&Help");
     SetMenuBar(menuBar);
 
@@ -680,6 +685,38 @@ void wxPlottingFrame::BuildCursorMenu(wxMenuBar* menuBar)
     cursorMenu->AppendRadioItem(ID_CURSOR_COMBINED, "&Combined",
                                 "Crosshair with both axis values");
     menuBar->Append(cursorMenu, "&Cursor");
+}
+
+void wxPlottingFrame::BuildArrangeMenu(wxMenuBar* menuBar)
+{
+    wxMenu* arrangeMenu = new wxMenu;
+    arrangeMenu->Append(ID_ARRANGE_VERTICAL, "Arrange &Vertical Axes",
+                        "Tile visible vertical axes top-to-bottom with gaps");
+    arrangeMenu->Append(ID_ARRANGE_HORIZONTAL, "Arrange &Horizontal Axes",
+                        "Tile visible horizontal axes left-to-right with gaps");
+    menuBar->Append(arrangeMenu, "&Arrange");
+}
+
+void wxPlottingFrame::OnArrangeMenu(wxCommandEvent& event)
+{
+    if ( !m_plot )
+        return;
+
+    switch ( event.GetId() )
+    {
+        case ID_ARRANGE_VERTICAL:
+            m_plot->ArrangeVerticalAxes();
+            SetStatusText(wxT("Arranged vertical axes (top to bottom)"));
+            break;
+        case ID_ARRANGE_HORIZONTAL:
+            m_plot->ArrangeHorizontalAxes();
+            SetStatusText(wxT("Arranged horizontal axes (left to right)"));
+            break;
+        default:
+            return;
+    }
+
+    RefreshPlot();
 }
 
 Axis* wxPlottingFrame::DemoAxis() const

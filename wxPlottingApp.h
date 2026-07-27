@@ -107,7 +107,11 @@ private:
         ID_CURSOR_OFF,
         ID_CURSOR_HORIZONTAL,
         ID_CURSOR_VERTICAL,
-        ID_CURSOR_COMBINED
+        ID_CURSOR_COMBINED,
+
+        // Axis auto-arrange
+        ID_ARRANGE_VERTICAL,
+        ID_ARRANGE_HORIZONTAL
     };
 
     void OnExit(wxCommandEvent& event);
@@ -135,6 +139,11 @@ private:
 
     /** Build &Cursor menu (measurement cursor modes). */
     void BuildCursorMenu(wxMenuBar* menuBar);
+
+    /** Build &Arrange menu (auto-layout axis bands). */
+    void BuildArrangeMenu(wxMenuBar* menuBar);
+
+    void OnArrangeMenu(wxCommandEvent& event);
 
     /** Resolve demo objects (null if missing). */
     Axis*   DemoAxis() const;

@@ -234,6 +234,93 @@ const Series* wxPlotting::GetSeries(const wxString& name) const
 }
 
 
+void wxPlotting::ArrangeVerticalAxes(double spacing)
+{
+    // Top → bottom: first registered visible vertical axis is highest on screen.
+    ArrangeAxesOfType(Axis::Vertical, spacing, true);
+}
+
+void wxPlotting::ArrangeHorizontalAxes(double spacing)
+{
+    // Left → right: first registered visible horizontal axis is leftmost.
+    ArrangeAxesOfType(Axis::Horizontal, spacing, false);
+}
+
+void wxPlotting::ArrangeAxesOfType(Axis::AxisType type, double spacing, bool topToBottom)
+{
+    if ( spacing < 0.0 )
+        spacing = 0.0;
+
+    // Collect pointers in registration order (stable layout order).
+    std::vector<Axis*> axes;
+    axes.reserve(m_axisList.size());
+    for ( auto& axis : m_axisList )
+    {
+        if ( !axis.Visible )
+            continue;
+        if ( axis.GetAxisType() != type )
+            continue;
+        axes.push_back(&axis);
+    }
+
+    const size_t n = axes.size();
+    if ( n == 0 )
+        return;
+
+    if ( n == 1 )
+    {
+        axes[0]->SetPosition(0.0, 1.0);
+        return;
+    }
+
+    // Equal bands with fixed gaps; shrink gaps if they would leave no room.
+    const double minBand = 0.02;
+    double gap = spacing;
+    double totalGap = gap * static_cast<double>(n - 1);
+    double usable = 1.0 - totalGap;
+    if ( usable < minBand * static_cast<double>(n) )
+    {
+        usable = minBand * static_cast<double>(n);
+        if ( usable > 1.0 )
+            usable = 1.0;
+        totalGap = 1.0 - usable;
+        gap = totalGap / static_cast<double>(n - 1);
+    }
+
+    const double band = usable / static_cast<double>(n);
+
+    for ( size_t i = 0; i < n; ++i )
+    {
+        double lo = 0.0;
+        double hi = 1.0;
+
+        if ( type == Axis::Vertical && topToBottom )
+        {
+            // i = 0 at top (high normalized Y), then downward.
+            hi = 1.0 - static_cast<double>(i) * (band + gap);
+            lo = hi - band;
+        }
+        else
+        {
+            // Horizontal (or bottom-to-top if ever requested): low → high.
+            lo = static_cast<double>(i) * (band + gap);
+            hi = lo + band;
+        }
+
+        // Numerical safety into [0, 1].
+        if ( lo < 0.0 ) lo = 0.0;
+        if ( hi > 1.0 ) hi = 1.0;
+        if ( lo > hi )
+        {
+            const double t = lo;
+            lo = hi;
+            hi = t;
+        }
+
+        axes[i]->SetPosition(lo, hi);
+    }
+}
+
 void wxPlotting::UpdatePlot(bool forceImmediate)
 {
     // Mark a full buffer rebuild. High-rate callers (axis drag, streaming)
