@@ -34,11 +34,10 @@ include Makefile
 OBJECTDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}
 
 # Object Files
-# Sources live at repository root (../../ relative to this project).
 OBJECTFILES= \
-	${OBJECTDIR}/seriesrenderer.o \
-	${OBJECTDIR}/wxPlotting.o \
-	${OBJECTDIR}/wxPlottingApp.o
+	${OBJECTDIR}/_ext/29dd86f/seriesrenderer.o \
+	${OBJECTDIR}/_ext/29dd86f/wxPlotting.o \
+	${OBJECTDIR}/_ext/29dd86f/wxPlottingApp.o
 
 
 # C Compiler Flags
@@ -65,20 +64,20 @@ ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/wxPlotting: ${OBJECTFILES}
 	${MKDIR} -p ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}
 	${LINK.cc} -o ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/wxPlotting ${OBJECTFILES} ${LDLIBSOPTIONS}
 
-${OBJECTDIR}/seriesrenderer.o: ../../seriesrenderer.cpp
-	${MKDIR} -p ${OBJECTDIR}
+${OBJECTDIR}/_ext/29dd86f/seriesrenderer.o: ../../seriesrenderer.cpp
+	${MKDIR} -p ${OBJECTDIR}/_ext/29dd86f
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/seriesrenderer.o ../../seriesrenderer.cpp
+	$(COMPILE.cc) -O2 -I../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/_ext/29dd86f/seriesrenderer.o ../../seriesrenderer.cpp
 
-${OBJECTDIR}/wxPlotting.o: ../../wxPlotting.cpp
-	${MKDIR} -p ${OBJECTDIR}
+${OBJECTDIR}/_ext/29dd86f/wxPlotting.o: ../../wxPlotting.cpp
+	${MKDIR} -p ${OBJECTDIR}/_ext/29dd86f
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/wxPlotting.o ../../wxPlotting.cpp
+	$(COMPILE.cc) -O2 -I../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/_ext/29dd86f/wxPlotting.o ../../wxPlotting.cpp
 
-${OBJECTDIR}/wxPlottingApp.o: ../../wxPlottingApp.cpp
-	${MKDIR} -p ${OBJECTDIR}
+${OBJECTDIR}/_ext/29dd86f/wxPlottingApp.o: ../../wxPlottingApp.cpp
+	${MKDIR} -p ${OBJECTDIR}/_ext/29dd86f
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/wxPlottingApp.o ../../wxPlottingApp.cpp
+	$(COMPILE.cc) -O2 -I../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/_ext/29dd86f/wxPlottingApp.o ../../wxPlottingApp.cpp
 
 # Subprojects
 .build-subprojects:
@@ -86,7 +85,6 @@ ${OBJECTDIR}/wxPlottingApp.o: ../../wxPlottingApp.cpp
 # Clean Targets
 .clean-conf: ${CLEAN_SUBPROJECTS}
 	${RM} -r ${CND_BUILDDIR}/${CND_CONF}
-	${RM} -r ${CND_DISTDIR}/${CND_CONF}
 
 # Subprojects
 .clean-subprojects:

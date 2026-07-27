@@ -24,7 +24,7 @@ CLEAN_SUBPROJECTS=${CLEAN_SUBPROJECTS_${SUBPROJECTS}}
 
 
 # Project Name
-PROJECTNAME=wxPlotting
+PROJECTNAME=Linux
 
 # Active Configuration
 DEFAULTCONF=Debug
@@ -130,3 +130,4 @@ ALLCONFS=Debug Release
 	@echo "    also build subprojects."
 	@echo "Target 'help' prints this message."
 	@echo ""
+
