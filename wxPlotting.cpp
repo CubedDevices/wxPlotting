@@ -11,6 +11,7 @@
 #include "wx/dcclient.h"
 #include "wx/dcmemory.h"
 #include "wx/settings.h"
+#include "wx/timer.h"
 
 #include <cmath>
 #include <limits>
@@ -86,15 +87,21 @@ bool wxPlotting::Create(wxWindow* parent,
     SetScrollRate(20, 20);
     EnableScrolling(true, true);
 
+    m_updateThrottleTimer.SetOwner(this);
+    Bind(wxEVT_TIMER, &wxPlotting::OnUpdateThrottleTimer, this);
+
     SyncDrawingSizeToClient();
     RecreateBuffer();
     Render();
+    m_lastFlushMs = wxGetLocalTimeMillis();
 
     return true;
 }
 
 wxPlotting::~wxPlotting()
 {
+    if ( m_updateThrottleTimer.IsRunning() )
+        m_updateThrottleTimer.Stop();
 }
 
 // ----------------------------------------------------------------------------
@@ -229,13 +236,90 @@ const Series* wxPlotting::GetSeries(const wxString& name) const
 
 void wxPlotting::UpdatePlot(bool forceImmediate)
 {
-    // Rebuild the off-screen buffer, then ask the window to repaint.
-    // Avoid Update() by default so high-rate CallAfter(UpdatePlot) does not
-    // force a synchronous paint storm on the UI thread.
-    Render();
-    Refresh(false);
+    // Mark a full buffer rebuild. High-rate callers (axis drag, streaming)
+    // are coalesced to ~kMaxUpdateHz with a trailing flush so the last
+    // state is always shown without saturating the UI thread on Windows.
+    m_fullUpdatePending = true;
+
+    if ( forceImmediate )
+    {
+        if ( m_updateThrottleTimer.IsRunning() )
+            m_updateThrottleTimer.Stop();
+        FlushPendingUpdate(true);
+        return;
+    }
+
+    const wxLongLong now = wxGetLocalTimeMillis();
+    const wxLongLong minIntervalMs = 1000 / kMaxUpdateHz; // ~16 ms at 60 Hz
+    const wxLongLong elapsed = now - m_lastFlushMs;
+
+    if ( m_lastFlushMs == 0 || elapsed >= minIntervalMs )
+    {
+        if ( m_updateThrottleTimer.IsRunning() )
+            m_updateThrottleTimer.Stop();
+        FlushPendingUpdate(false);
+        return;
+    }
+
+    // Too soon: schedule a trailing update for the remainder of the interval.
+    if ( !m_updateThrottleTimer.IsRunning() )
+    {
+        int delay = static_cast<int>((minIntervalMs - elapsed).GetValue());
+        if ( delay < 1 )
+            delay = 1;
+        m_updateThrottleTimer.StartOnce(delay);
+    }
+}
+
+void wxPlotting::RequestOverlayRefresh()
+{
+    m_overlayRefreshPending = true;
+
+    const wxLongLong now = wxGetLocalTimeMillis();
+    const wxLongLong minIntervalMs = 1000 / kMaxUpdateHz;
+    const wxLongLong elapsed = now - m_lastFlushMs;
+
+    if ( m_lastFlushMs == 0 || elapsed >= minIntervalMs )
+    {
+        if ( m_updateThrottleTimer.IsRunning() )
+            m_updateThrottleTimer.Stop();
+        FlushPendingUpdate(false);
+        return;
+    }
+
+    if ( !m_updateThrottleTimer.IsRunning() )
+    {
+        int delay = static_cast<int>((minIntervalMs - elapsed).GetValue());
+        if ( delay < 1 )
+            delay = 1;
+        m_updateThrottleTimer.StartOnce(delay);
+    }
+}
+
+void wxPlotting::FlushPendingUpdate(bool forceImmediate)
+{
+    const bool needRender = m_fullUpdatePending;
+    const bool needRefresh = m_fullUpdatePending || m_overlayRefreshPending;
+
+    m_fullUpdatePending = false;
+    m_overlayRefreshPending = false;
+
+    if ( needRender )
+        Render();
+
+    if ( needRefresh )
+        Refresh(false);
+
     if ( forceImmediate )
         Update();
+
+    m_lastFlushMs = wxGetLocalTimeMillis();
+}
+
+void wxPlotting::OnUpdateThrottleTimer(wxTimerEvent& WXUNUSED(event))
+{
+    if ( m_fullUpdatePending || m_overlayRefreshPending )
+        FlushPendingUpdate(false);
 }
 
 // ----------------------------------------------------------------------------
@@ -1124,8 +1208,8 @@ void wxPlotting::OnMotion(wxMouseEvent& event)
         CalcUnscrolledPosition(event.GetX(), event.GetY(), &cx, &cy);
         m_cursorCanvasPos = wxPoint(cx, cy);
         m_cursorTracking = true;
-        // Overlay only — do not re-render the full plot buffer.
-        Refresh(false);
+        // Overlay only — rate-limited; do not re-render the full plot buffer.
+        RequestOverlayRefresh();
     }
     event.Skip();
 }
@@ -1135,7 +1219,11 @@ void wxPlotting::OnLeaveWindow(wxMouseEvent& event)
     if ( m_cursorMode != PlotCursorMode::Off && m_cursorTracking )
     {
         m_cursorTracking = false;
-        Refresh(false);
+        // Hide promptly (infrequent); bypass throttle so the overlay vanishes.
+        m_overlayRefreshPending = true;
+        if ( m_updateThrottleTimer.IsRunning() )
+            m_updateThrottleTimer.Stop();
+        FlushPendingUpdate(false);
     }
     event.Skip();
 }
@@ -1153,7 +1241,11 @@ void wxPlotting::SetCursorMode(PlotCursorMode mode)
     if ( m_cursorMode == PlotCursorMode::Off )
         m_cursorTracking = false;
 
-    Refresh(false);
+    // Mode changes are infrequent — paint immediately.
+    m_overlayRefreshPending = true;
+    if ( m_updateThrottleTimer.IsRunning() )
+        m_updateThrottleTimer.Stop();
+    FlushPendingUpdate(false);
 }
 
 const Axis* wxPlotting::AxisOfTypeFromHit(const PlotHitResult& hit,

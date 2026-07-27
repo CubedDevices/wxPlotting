@@ -13,6 +13,7 @@
     #include "wx/scrolwin.h"
     #include "wx/bitmap.h"
     #include "wx/dcmemory.h"
+    #include "wx/timer.h"
 #endif
 
 #include <list>
@@ -201,9 +202,11 @@ public:
 
     /**
      * @brief Rebuild the off-screen plot and request a repaint.
-     * @param forceImmediate If @c false (default), only @c Refresh is used so
-     *        high-rate updates do not force synchronous paints. If @c true,
-     *        also calls @c Update() for an immediate paint.
+     * @param forceImmediate If @c false (default), full buffer rebuilds are
+     *        rate-limited to about 60 Hz so high-frequency callers (axis drag,
+     *        streaming data) cannot flood the UI thread. A trailing update is
+     *        always scheduled so the last state is painted. If @c true, rebuild
+     *        and paint immediately (also calls @c Update()).
      * @warning Must be called on the UI thread.
      */
     void UpdatePlot(bool forceImmediate = false);
@@ -434,6 +437,11 @@ protected:
     void OnLeaveWindow(wxMouseEvent& event);
 
     /**
+     * @brief Trailing-edge timer for rate-limited @ref UpdatePlot / overlay refresh.
+     */
+    void OnUpdateThrottleTimer(wxTimerEvent& event);
+
+    /**
      * @brief Recreate the off-screen bitmap and update the plot rectangle.
      */
     void RecreateBuffer();
@@ -442,6 +450,18 @@ protected:
      * @brief Clear the buffer and call @ref DrawPlot.
      */
     void Render();
+
+    /**
+     * @brief Apply pending full rebuild and/or refresh (used by throttle path).
+     * @param forceImmediate When @c true, also call @c Update() after @c Refresh.
+     */
+    void FlushPendingUpdate(bool forceImmediate);
+
+    /**
+     * @brief Request a rate-limited overlay-only repaint (no buffer rebuild).
+     * @details Used by measurement cursors during mouse motion.
+     */
+    void RequestOverlayRefresh();
 
     /**
      * @brief DrawSeries, called from @ref DrawPlot.
@@ -490,6 +510,16 @@ private:
     PlotCursorMode m_cursorMode = PlotCursorMode::Off;
     bool           m_cursorTracking = false; ///< True when pointer is over the control.
     wxPoint        m_cursorCanvasPos;        ///< Last mouse position in canvas coords.
+
+    // --- Paint rate limiting (~60 Hz) --------------------------------------
+    // High-frequency mouse motion (especially on Windows) can request more
+    // full-buffer rebuilds than the UI can sustain. Coalesce to this interval
+    // and always flush a trailing update so the final state is visible.
+    static const int kMaxUpdateHz = 60;
+    wxTimer    m_updateThrottleTimer;
+    wxLongLong m_lastFlushMs = 0;       ///< Time of last FlushPendingUpdate.
+    bool       m_fullUpdatePending = false;    ///< Need Render() before paint.
+    bool       m_overlayRefreshPending = false;///< Need Refresh only (cursors).
 
     wxDECLARE_DYNAMIC_CLASS(wxPlotting);
     wxDECLARE_EVENT_TABLE();
