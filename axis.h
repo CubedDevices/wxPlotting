@@ -35,7 +35,8 @@
  * - @ref SetRange is in scaled units (tick labels and cursors use this space).
  * - @ref SetPosition sets the axis extent in normalized plot space [0, 1].
  * - @ref SetLocation places the axis line across the perpendicular direction.
- * - @ref ConvertValue maps a raw data value (via Scale) into normalized plot space.
+ * - @ref ConvertValue maps a raw series sample (via Scale) into normalized plot space.
+ * - @ref ConvertRangeValue maps a value already in range/display units (ticks, grids).
  */
 class Axis
 {
@@ -289,28 +290,38 @@ public:
     }
 
     /**
-     * @brief Map a raw series sample into normalized plot coordinates.
-     * @param realValue Sample as stored on the series (unscaled).
+     * @brief Map a value already in range/display units into plot coordinates.
+     * @param rangeValue Value in the same space as @ref SetRange (ticks, grids).
      * @return Position in the axis span [@ref GetStart, @ref GetEnd].
-     * @details Applies @ref Scale first, then maps the scaled value through
-     *          [@ref GetRangeStart, @ref GetRangeEnd]. If the range width is
-     *          zero, returns the midpoint of the axis span.
+     * @details Does @b not apply @ref Scale. Use this for tick/grid placement.
+     *          Series samples should use @ref ConvertValue instead.
      */
-    double ConvertValue(double realValue) const
+    double ConvertRangeValue(double rangeValue) const
     {
-        const double scaled = ApplyScale(realValue);
         const double rangeSpan = m_rangeEnd - m_rangeStart;
         if ( rangeSpan == 0.0 )
             return (m_start + m_end) * 0.5;
 
-        const double axisPoint = (scaled - m_rangeStart) / rangeSpan;
+        const double axisPoint = (rangeValue - m_rangeStart) / rangeSpan;
         return m_start + (axisPoint * (m_end - m_start));
     }
 
     /**
-     * @brief Inverse of @ref ConvertValue: plot-normalized position → range units.
+     * @brief Map a raw series sample into normalized plot coordinates.
+     * @param realValue Sample as stored on the series (unscaled).
+     * @return Position in the axis span [@ref GetStart, @ref GetEnd].
+     * @details Applies @ref Scale, then @ref ConvertRangeValue. If the range
+     *          width is zero, returns the midpoint of the axis span.
+     */
+    double ConvertValue(double realValue) const
+    {
+        return ConvertRangeValue(ApplyScale(realValue));
+    }
+
+    /**
+     * @brief Inverse of @ref ConvertRangeValue: plot-normalized position → range units.
      * @param plotNorm Position in the axis span [@ref GetStart, @ref GetEnd]
-     *        (same space as @ref ConvertValue output / screen mapping input).
+     *        (same space as @ref ConvertRangeValue / @ref ConvertValue output).
      * @return Value in scaled / display units ([@ref GetRangeStart, @ref GetRangeEnd]).
      * @details Used by measurement cursors (matches tick labels). Does not
      *          divide by @ref Scale; for the original series sample, use

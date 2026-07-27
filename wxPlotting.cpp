@@ -975,7 +975,9 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
                         break;
 
                     wxPoint tickPoint;
-                    double v = iter->ConvertValue(t_start);
+                    // Tick values are already in range/display units — do not
+                    // apply Axis::Scale (that is only for raw series samples).
+                    double v = iter->ConvertRangeValue(t_start);
                     if (iter->GetAxisType() == Axis::Horizontal)
                     {
                         tickPoint.x = (v / 1.0) * m_plot.GetWidth();
