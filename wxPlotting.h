@@ -501,7 +501,7 @@ private:
     int m_marginLeft   = 80;
     int m_marginRight  = 40;
     int m_marginTop    = 40;
-    int m_marginBottom = 70;
+    int m_marginBottom = 80;
 
     wxSize m_minDrawingSize;
     wxSize m_drawingSize;

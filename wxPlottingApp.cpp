@@ -64,7 +64,7 @@ wxEND_EVENT_TABLE()
 
 wxPlottingFrame::wxPlottingFrame()
     : wxFrame(nullptr, wxID_ANY, "wxPlotting Test",
-              wxDefaultPosition, wxSize(800, 600)),
+              wxDefaultPosition, wxSize(920, 720)),
       m_plot(nullptr)
 {
     // Menu bar
@@ -532,6 +532,7 @@ wxPlottingFrame::wxPlottingFrame()
     sizer->Add(m_plot, 1, wxEXPAND | wxALL, 0);
     SetSizer(sizer);
 
+    m_plot->SetMinDrawingSize(wxSize(800, 600));
     Centre();
 }
 
