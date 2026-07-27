@@ -500,8 +500,7 @@ namespace
             m.index = i;
             m.data = points[i];
 
-            if ( points[i].x < horz.GetRangeStart() || points[i].x > horz.GetRangeEnd() ||
-                 points[i].y < vert.GetRangeStart() || points[i].y > vert.GetRangeEnd() )
+            if ( !horz.IsValueInRange(points[i].x) || !vert.IsValueInRange(points[i].y) )
             {
                 m.valid = false;
             }
@@ -1133,12 +1132,9 @@ void wxPlotting::DrawSeries(wxMemoryDC& dc, const wxSize& size)
             ++ptIter
             )
         {
-            if (ptIter->x < horzAxis->GetRangeStart() || (ptIter->x > horzAxis->GetRangeEnd()))
-            {
-                renderer->Break();
-                continue;
-            }
-            if (ptIter->y < vertAxis->GetRangeStart() || (ptIter->y > vertAxis->GetRangeEnd()))
+            // Clip in scaled (range) units so Axis::Scale is respected.
+            if ( !horzAxis->IsValueInRange(ptIter->x) ||
+                 !vertAxis->IsValueInRange(ptIter->y) )
             {
                 renderer->Break();
                 continue;
