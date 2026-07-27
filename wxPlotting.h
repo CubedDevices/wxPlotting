@@ -466,11 +466,6 @@ protected:
      */
     const Axis* AxisOfTypeFromHit(const PlotHitResult& hit, Axis::AxisType type) const;
 
-    /**
-     * @brief Format a data value using an axis tick format string.
-     */
-    static wxString FormatAxisCursorValue(const Axis& axis, double value);
-
 private:
     std::list<Axis> m_axisList;
     std::list<Series> m_seriesList;

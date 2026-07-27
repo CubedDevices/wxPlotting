@@ -136,9 +136,22 @@ public:
     /**
      * @brief printf-style format for tick values (one floating argument).
      * @details Examples: @c "%g", @c "%.0f", @c "%.2f", @c "%+0.1f".
-     *          Empty falls back to @c "%g" when formatting.
+     *          Empty falls back to @c "%g" when formatting via @ref FormatTickValue.
+     *          Used for axis tick labels and measurement-cursor readouts.
      */
     wxString TickLabelFormat;
+
+    /**
+     * @brief Format a data value with @ref TickLabelFormat (same as tick labels).
+     * @param value Data value in axis range units.
+     * @return Formatted string; empty format falls back to @c "%g".
+     */
+    wxString FormatTickValue(double value) const
+    {
+        if ( TickLabelFormat.IsEmpty() )
+            return wxString::Format(wxT("%g"), value);
+        return wxString::Format(TickLabelFormat, value);
+    }
 
     wxString Label;         ///< Axis title text (defaults to the axis name).
     bool     LabelVisible;  ///< Draw the axis title.

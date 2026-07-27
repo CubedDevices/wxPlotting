@@ -248,14 +248,6 @@ namespace
     const int kTickLength = 10;
     const int kLabelPad = 4;
 
-    wxString FormatTickValue(const Axis& axis, double value)
-    {
-        const wxString& fmt = axis.TickLabelFormat.IsEmpty()
-            ? wxString("%g")
-            : axis.TickLabelFormat;
-        return wxString::Format(fmt, value);
-    }
-
     int AxisTitleClearance(wxDC& dc, const Axis& axis, bool horizontal)
     {
         int clear = (axis.Width + 1) / 2 + kLabelPad;
@@ -275,8 +267,8 @@ namespace
             }
             else
             {
-                const wxString s0 = FormatTickValue(axis, axis.GetRangeStart());
-                const wxString s1 = FormatTickValue(axis, axis.GetRangeEnd());
+                const wxString s0 = axis.FormatTickValue(axis.GetRangeStart());
+                const wxString s1 = axis.FormatTickValue(axis.GetRangeEnd());
                 const int w0 = dc.GetTextExtent(s0).x;
                 const int w1 = dc.GetTextExtent(s1).x;
                 clear += wxMax(w0, w1) + kLabelPad;
@@ -964,7 +956,7 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
                         dc.SetFont(iter->TickFont);
                         dc.SetTextForeground(iter->TickColor);
 
-                        const wxString text = FormatTickValue(*iter, t_start);
+                        const wxString text = iter->FormatTickValue(t_start);
                         const wxSize ts = dc.GetTextExtent(text);
 
                         int tx = 0;
@@ -1174,14 +1166,6 @@ const Axis* wxPlotting::AxisOfTypeFromHit(const PlotHitResult& hit,
     return nullptr;
 }
 
-wxString wxPlotting::FormatAxisCursorValue(const Axis& axis, double value)
-{
-    const wxString& fmt = axis.TickLabelFormat.IsEmpty()
-        ? wxString("%g")
-        : axis.TickLabelFormat;
-    return wxString::Format(fmt, value);
-}
-
 void wxPlotting::DrawCursors(wxDC& dc)
 {
     if ( m_cursorMode == PlotCursorMode::Off || !m_cursorTracking )
@@ -1222,11 +1206,12 @@ void wxPlotting::DrawCursors(wxDC& dc)
     wxString labelV;
 
     // Horizontal cursor mode → vertical tracking line + H-axis value.
+    // Value uses the axis TickLabelFormat (same as tick labels).
     if ( wantH && horzAxis )
     {
         dc.DrawLine(x, m_plot.GetTop(), x, m_plot.GetBottom());
         const double dataX = horzAxis->InverseConvertValue(plotNormX);
-        labelH = FormatAxisCursorValue(*horzAxis, dataX);
+        labelH = horzAxis->FormatTickValue(dataX);
     }
 
     // Vertical cursor mode → horizontal tracking line + V-axis value.
@@ -1234,7 +1219,7 @@ void wxPlotting::DrawCursors(wxDC& dc)
     {
         dc.DrawLine(m_plot.GetLeft(), y, m_plot.GetRight(), y);
         const double dataY = vertAxis->InverseConvertValue(plotNormY);
-        labelV = FormatAxisCursorValue(*vertAxis, dataY);
+        labelV = vertAxis->FormatTickValue(dataY);
     }
 
     // Compose readout near the pointer (offset so it is not under the cursor).
