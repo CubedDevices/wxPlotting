@@ -588,7 +588,7 @@ void wxPlottingFrame::BuildPropertyMenus(wxMenuBar* menuBar)
     axisMenu->Append(ID_AXIS_RANGE_END, "Range e&nd...",
                      "Data range end (e.g. volts)");
     axisMenu->Append(ID_AXIS_SCALE, "Sca&le...",
-                     "Multiply series samples before range mapping (e.g. 1000 for ms)");
+                     "Display multiplier for range/ticks/cursors (e.g. 1000 for ms labels)");
     axisMenu->AppendSeparator();
 
     axisMenu->AppendCheckItem(ID_AXIS_TICK_VISIBLE, "&Tick marks",
