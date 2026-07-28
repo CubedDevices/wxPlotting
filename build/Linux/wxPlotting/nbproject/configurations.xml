@@ -49,9 +49,6 @@
         </ccTool>
         <archiverTool>
         </archiverTool>
-        <linkerTool>
-          <output>${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxPlotting.a</output>
-        </linkerTool>
       </compileType>
       <item path="../../../axis.h" ex="false" tool="3" flavor2="0">
       </item>
@@ -86,9 +83,6 @@
         </ccTool>
         <archiverTool>
         </archiverTool>
-        <linkerTool>
-          <output>${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxPlotting.a</output>
-        </linkerTool>
       </compileType>
       <item path="../../../axis.h" ex="false" tool="3" flavor2="0">
       </item>

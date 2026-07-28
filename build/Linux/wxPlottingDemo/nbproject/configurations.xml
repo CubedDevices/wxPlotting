@@ -43,8 +43,19 @@
         <linkerTool>
           <output>${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/wxPlottingDemo</output>
           <linkerLibItems>
-            <linkerOptionItem>../wxPlotting/dist/Debug/GNU-Linux/libwxPlotting.a</linkerOptionItem>
             <linkerOptionItem>`wx-config --libs`</linkerOptionItem>
+            <linkerLibProjectItem>
+              <makeArtifact PL="../wxPlotting"
+                            CT="3"
+                            CN="Debug"
+                            AC="true"
+                            BL="true"
+                            WD="../wxPlotting"
+                            BC="${MAKE}  -f Makefile CONF=Debug"
+                            CC="${MAKE}  -f Makefile CONF=Debug clean"
+                            OP="${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxplotting.a">
+              </makeArtifact>
+            </linkerLibProjectItem>
           </linkerLibItems>
         </linkerTool>
       </compileType>
@@ -70,8 +81,19 @@
         <linkerTool>
           <output>${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/wxPlottingDemo</output>
           <linkerLibItems>
-            <linkerOptionItem>../wxPlotting/dist/Release/GNU-Linux/libwxPlotting.a</linkerOptionItem>
             <linkerOptionItem>`wx-config --libs`</linkerOptionItem>
+            <linkerLibProjectItem>
+              <makeArtifact PL="../wxPlotting"
+                            CT="3"
+                            CN="Release"
+                            AC="false"
+                            BL="true"
+                            WD="../wxPlotting"
+                            BC="${MAKE}  -f Makefile CONF=Release"
+                            CC="${MAKE}  -f Makefile CONF=Release clean"
+                            OP="${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxplotting.a">
+              </makeArtifact>
+            </linkerLibProjectItem>
           </linkerLibItems>
         </linkerTool>
       </compileType>

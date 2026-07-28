@@ -1,9 +1,11 @@
 #
 # Generated Makefile - do not edit!
 #
-# Static library: libwxPlotting.a
-# Sources at repository root (../../../).
+# Edit the Makefile in the project folder instead (../Makefile). Each target
+# has a -pre and a -post target defined where you can add customized code.
 #
+# This makefile implements configuration specific macros and targets.
+
 
 # Environment
 MKDIR=mkdir
@@ -17,7 +19,6 @@ CCC=g++
 CXX=g++
 FC=gfortran
 AS=as
-AR=ar
 
 # Macros
 CND_PLATFORM=GNU-Linux
@@ -34,16 +35,16 @@ OBJECTDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}
 
 # Object Files
 OBJECTFILES= \
-	${OBJECTDIR}/seriesrenderer.o \
-	${OBJECTDIR}/wxPlotting.o
+	${OBJECTDIR}/_ext/7ea65360/seriesrenderer.o \
+	${OBJECTDIR}/_ext/7ea65360/wxPlotting.o
 
 
 # C Compiler Flags
 CFLAGS=
 
 # CC Compiler Flags
-CCFLAGS=`wx-config --cxxflags`
-CXXFLAGS=`wx-config --cxxflags`
+CCFLAGS=`wx-config --cxxflags` 
+CXXFLAGS=`wx-config --cxxflags` 
 
 # Fortran Compiler Flags
 FFLAGS=
@@ -51,25 +52,28 @@ FFLAGS=
 # Assembler Flags
 ASFLAGS=
 
+# Link Libraries and Options
+LDLIBSOPTIONS=
+
 # Build Targets
 .build-conf: ${BUILD_SUBPROJECTS}
-	"${MAKE}"  -f nbproject/Makefile-${CND_CONF}.mk ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxPlotting.a
+	"${MAKE}"  -f nbproject/Makefile-${CND_CONF}.mk ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxplotting.a
 
-${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxPlotting.a: ${OBJECTFILES}
+${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxplotting.a: ${OBJECTFILES}
 	${MKDIR} -p ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}
-	${RM} ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxPlotting.a
-	${AR} -rv ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxPlotting.a ${OBJECTFILES}
-	$(RANLIB) ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxPlotting.a
+	${RM} ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxplotting.a
+	${AR} -rv ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxplotting.a ${OBJECTFILES} 
+	$(RANLIB) ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxplotting.a
 
-${OBJECTDIR}/seriesrenderer.o: ../../../seriesrenderer.cpp
-	${MKDIR} -p ${OBJECTDIR}
+${OBJECTDIR}/_ext/7ea65360/seriesrenderer.o: ../../../seriesrenderer.cpp
+	${MKDIR} -p ${OBJECTDIR}/_ext/7ea65360
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I../../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/seriesrenderer.o ../../../seriesrenderer.cpp
+	$(COMPILE.cc) -O2 -I../../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/_ext/7ea65360/seriesrenderer.o ../../../seriesrenderer.cpp
 
-${OBJECTDIR}/wxPlotting.o: ../../../wxPlotting.cpp
-	${MKDIR} -p ${OBJECTDIR}
+${OBJECTDIR}/_ext/7ea65360/wxPlotting.o: ../../../wxPlotting.cpp
+	${MKDIR} -p ${OBJECTDIR}/_ext/7ea65360
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I../../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/wxPlotting.o ../../../wxPlotting.cpp
+	$(COMPILE.cc) -O2 -I../../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/_ext/7ea65360/wxPlotting.o ../../../wxPlotting.cpp
 
 # Subprojects
 .build-subprojects:
@@ -77,7 +81,6 @@ ${OBJECTDIR}/wxPlotting.o: ../../../wxPlotting.cpp
 # Clean Targets
 .clean-conf: ${CLEAN_SUBPROJECTS}
 	${RM} -r ${CND_BUILDDIR}/${CND_CONF}
-	${RM} -r ${CND_DISTDIR}/${CND_CONF}
 
 # Subprojects
 .clean-subprojects:

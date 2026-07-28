@@ -1,8 +1,11 @@
 #
 # Generated Makefile - do not edit!
 #
-# Demo application linking libwxPlotting.a
+# Edit the Makefile in the project folder instead (../Makefile). Each target
+# has a -pre and a -post target defined where you can add customized code.
 #
+# This makefile implements configuration specific macros and targets.
+
 
 # Environment
 MKDIR=mkdir
@@ -32,15 +35,15 @@ OBJECTDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}
 
 # Object Files
 OBJECTFILES= \
-	${OBJECTDIR}/wxPlottingApp.o
+	${OBJECTDIR}/_ext/7ea65360/wxPlottingApp.o
 
 
 # C Compiler Flags
 CFLAGS=
 
 # CC Compiler Flags
-CCFLAGS=`wx-config --cxxflags`
-CXXFLAGS=`wx-config --cxxflags`
+CCFLAGS=`wx-config --cxxflags` 
+CXXFLAGS=`wx-config --cxxflags` 
 
 # Fortran Compiler Flags
 FFLAGS=
@@ -49,34 +52,34 @@ FFLAGS=
 ASFLAGS=
 
 # Link Libraries and Options
-WXPLOTTING_LIB=../wxPlotting/dist/${CND_CONF}/${CND_PLATFORM}/libwxPlotting.a
-LDLIBSOPTIONS=${WXPLOTTING_LIB} `wx-config --libs`
+LDLIBSOPTIONS=`wx-config --libs` ../wxPlotting/dist/Debug/GNU-Linux/libwxplotting.a  
 
 # Build Targets
 .build-conf: ${BUILD_SUBPROJECTS}
 	"${MAKE}"  -f nbproject/Makefile-${CND_CONF}.mk ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/wxPlottingDemo
 
-${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/wxPlottingDemo: ${OBJECTFILES} ${WXPLOTTING_LIB}
+${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/wxPlottingDemo: ../wxPlotting/dist/Debug/GNU-Linux/libwxplotting.a
+
+${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/wxPlottingDemo: ${OBJECTFILES}
 	${MKDIR} -p ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}
 	${LINK.cc} -o ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/wxPlottingDemo ${OBJECTFILES} ${LDLIBSOPTIONS}
 
-${OBJECTDIR}/wxPlottingApp.o: ../../../wxPlottingApp.cpp
-	${MKDIR} -p ${OBJECTDIR}
+${OBJECTDIR}/_ext/7ea65360/wxPlottingApp.o: ../../../wxPlottingApp.cpp
+	${MKDIR} -p ${OBJECTDIR}/_ext/7ea65360
 	${RM} "$@.d"
-	$(COMPILE.cc) -g -I../../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/wxPlottingApp.o ../../../wxPlottingApp.cpp
+	$(COMPILE.cc) -g -I../../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/_ext/7ea65360/wxPlottingApp.o ../../../wxPlottingApp.cpp
 
-# Subprojects — build the static library first
+# Subprojects
 .build-subprojects:
-	cd ../wxPlotting && ${MAKE} CONF=${CND_CONF}
+	cd ../wxPlotting && ${MAKE}  -f Makefile CONF=Debug
 
 # Clean Targets
 .clean-conf: ${CLEAN_SUBPROJECTS}
 	${RM} -r ${CND_BUILDDIR}/${CND_CONF}
-	${RM} -r ${CND_DISTDIR}/${CND_CONF}
 
 # Subprojects
 .clean-subprojects:
-	cd ../wxPlotting && ${MAKE} CONF=${CND_CONF} clean
+	cd ../wxPlotting && ${MAKE}  -f Makefile CONF=Debug clean
 
 # Enable dependency checking
 .dep.inc: .depcheck-impl
