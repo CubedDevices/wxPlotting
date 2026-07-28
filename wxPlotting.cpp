@@ -1212,6 +1212,11 @@ void wxPlotting::DrawSeries(wxMemoryDC& dc, const wxSize& size)
         std::unique_ptr<SeriesRenderer> renderer =
             CreateSeriesRenderer(iter->RenderStyle);
         renderer->Begin(dc, *iter, m_plot);
+        // Fill style closes to the lower edge of the vertical axis band.
+        {
+            const double lo = wxMin(vertAxis->GetStart(), vertAxis->GetEnd());
+            renderer->SetBaselinePlotY(lo);
+        }
 
         // Snapshot under the series mutex so a worker can append/replace
         // points while we draw without racing or holding the lock during GDI.

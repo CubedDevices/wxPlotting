@@ -661,6 +661,7 @@ void wxPlottingFrame::BuildPropertyMenus(wxMenuBar* menuBar)
         wxMenu* styleMenu = new wxMenu;
         styleMenu->AppendRadioItem(ID_SERIES_STYLE_LINE, "&Line");
         styleMenu->AppendRadioItem(ID_SERIES_STYLE_STAIR, "&Stair step");
+        styleMenu->AppendRadioItem(ID_SERIES_STYLE_FILL, "&Fill");
         seriesMenu->AppendSubMenu(styleMenu, "&Render style");
     }
     seriesMenu->AppendSeparator();
@@ -1093,6 +1094,13 @@ void wxPlottingFrame::OnSeriesMenu(wxCommandEvent& event)
                 changed = true;
             }
             break;
+        case ID_SERIES_STYLE_FILL:
+            if ( series->RenderStyle != SeriesRenderStyle::Fill )
+            {
+                series->RenderStyle = SeriesRenderStyle::Fill;
+                changed = true;
+            }
+            break;
         case ID_SERIES_HORZ_AXIS:
             changed = EditString(wxT("Horizontal axis name"), series->HorizontalAxis);
             break;
@@ -1124,6 +1132,9 @@ void wxPlottingFrame::OnSeriesUpdateUI(wxUpdateUIEvent& event)
             break;
         case ID_SERIES_STYLE_STAIR:
             event.Check(series->RenderStyle == SeriesRenderStyle::StairStep);
+            break;
+        case ID_SERIES_STYLE_FILL:
+            event.Check(series->RenderStyle == SeriesRenderStyle::Fill);
             break;
         default:
             break;

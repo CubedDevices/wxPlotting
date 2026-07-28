@@ -15,6 +15,7 @@
 #endif
 
 #include <memory>
+#include <vector>
 
 #include "plotcoords.h"
 
@@ -41,7 +42,15 @@ enum class SeriesRenderStyle
      * @details From the previous point @c (x0,y0) to the next @c (x1,y1)
      *          in axis-converted space: @c (x0,y0)→(x1,y0) then @c (x1,y0)→(x1,y1).
      */
-    StairStep
+    StairStep,
+
+    /**
+     * @brief Filled area under the curve down to the vertical axis band baseline.
+     * @details Collects each continuous segment, then fills the polygon from the
+     *          polyline down to the lower edge of the bound vertical axis span.
+     *          The curve outline is stroked with the series foreground colour.
+     */
+    Fill
 };
 
 /**
@@ -95,6 +104,18 @@ public:
      */
     virtual void End() = 0;
 
+    /**
+     * @brief Optional baseline in normalized plot Y for fill styles.
+     * @param plotNormY Lower edge of the vertical axis band (typically
+     *        @c min(axis.GetStart(), axis.GetEnd())).
+     * @details Default is a no-op. @ref SeriesFillRenderer uses this as the
+     *          bottom of the filled area. Call after @ref Begin from the plot.
+     */
+    virtual void SetBaselinePlotY(double plotNormY)
+    {
+        (void)plotNormY;
+    }
+
 protected:
     /**
      * @brief Map axis-converted coordinates to screen/logical DC pixels.
@@ -143,6 +164,32 @@ public:
 private:
     wxPoint m_lastScreen;
     bool    m_hasLast = false;
+};
+
+/**
+ * @class SeriesFillRenderer
+ * @brief Fills the area under each continuous polyline segment to a baseline.
+ *
+ * @details Points are buffered per segment. On @ref Break / @ref End the
+ *          polygon is closed down to @ref SetBaselinePlotY (default 0 in plot
+ *          space, i.e. bottom of the full plot when the baseline is not set).
+ *          Fill uses the series foreground as brush; the curve is stroked on top.
+ */
+class SeriesFillRenderer : public SeriesRenderer
+{
+public:
+    void Begin(wxDC& dc, const Series& series, const wxRect& plot) override;
+    void AddPoint(const wxRealPoint& plotPt) override;
+    void Break() override;
+    void End() override;
+    void SetBaselinePlotY(double plotNormY) override;
+
+private:
+    void FlushSegment();
+
+    wxColour m_colour;
+    double   m_baselinePlotY = 0.0;
+    std::vector<wxPoint> m_segment;
 };
 
 /**
