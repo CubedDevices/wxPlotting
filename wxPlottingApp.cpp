@@ -24,6 +24,7 @@
 /////////////////////////////////////////////////////////////////////////////
 #include "wxPlottingApp.h"
 #include "wxPlotting.h"
+#include "seriesrenderer.h"
 
 #include "wx/sizer.h"
 #include "wx/menu.h"
@@ -34,8 +35,52 @@
 #include "wx/numdlg.h"
 #include "wx/textdlg.h"
 #include "wx/choicdlg.h"
+#include "wx/pen.h"
+#include "wx/brush.h"
 
 #include <cmath>
+#include <memory>
+
+namespace
+{
+    /**
+     * Demo Custom renderer: small diamond markers at each sample.
+     * Shows how to plug an external SeriesRenderer into Series::CustomRendererFactory.
+     */
+    class DemoDiamondRenderer : public SeriesRenderer
+    {
+    public:
+        void Begin(wxDC& dc, const Series& series, const wxRect& plot) override
+        {
+            m_dc = &dc;
+            m_plot = plot;
+            m_colour = series.Foreground;
+            dc.SetPen(wxPen(m_colour));
+            dc.SetBrush(wxBrush(m_colour));
+        }
+
+        void AddPoint(const wxRealPoint& plotPt) override
+        {
+            if ( !m_dc )
+                return;
+            const wxPoint s = ToScreen(plotPt);
+            const int r = 3;
+            wxPoint pts[4] = {
+                wxPoint(s.x,     s.y - r),
+                wxPoint(s.x + r, s.y),
+                wxPoint(s.x,     s.y + r),
+                wxPoint(s.x - r, s.y)
+            };
+            m_dc->DrawPolygon(4, pts);
+        }
+
+        void Break() override {}
+        void End() override { m_dc = nullptr; }
+
+    private:
+        wxColour m_colour;
+    };
+} // namespace
 
 // ----------------------------------------------------------------------------
 // application
@@ -680,6 +725,8 @@ void wxPlottingFrame::BuildPropertyMenus(wxMenuBar* menuBar)
         styleMenu->AppendRadioItem(ID_SERIES_STYLE_LINE, "&Line");
         styleMenu->AppendRadioItem(ID_SERIES_STYLE_STAIR, "&Stair step");
         styleMenu->AppendRadioItem(ID_SERIES_STYLE_FILL, "&Fill");
+        styleMenu->AppendRadioItem(ID_SERIES_STYLE_POINTS, "&Points");
+        styleMenu->AppendRadioItem(ID_SERIES_STYLE_CUSTOM, "&Custom (diamond demo)");
         seriesMenu->AppendSubMenu(styleMenu, "&Render style");
     }
     seriesMenu->AppendSeparator();
@@ -1102,6 +1149,7 @@ void wxPlottingFrame::OnSeriesMenu(wxCommandEvent& event)
             if ( series->RenderStyle != SeriesRenderStyle::Line )
             {
                 series->RenderStyle = SeriesRenderStyle::Line;
+                series->CustomRendererFactory = nullptr;
                 changed = true;
             }
             break;
@@ -1109,6 +1157,7 @@ void wxPlottingFrame::OnSeriesMenu(wxCommandEvent& event)
             if ( series->RenderStyle != SeriesRenderStyle::StairStep )
             {
                 series->RenderStyle = SeriesRenderStyle::StairStep;
+                series->CustomRendererFactory = nullptr;
                 changed = true;
             }
             break;
@@ -1116,6 +1165,25 @@ void wxPlottingFrame::OnSeriesMenu(wxCommandEvent& event)
             if ( series->RenderStyle != SeriesRenderStyle::Fill )
             {
                 series->RenderStyle = SeriesRenderStyle::Fill;
+                series->CustomRendererFactory = nullptr;
+                changed = true;
+            }
+            break;
+        case ID_SERIES_STYLE_POINTS:
+            if ( series->RenderStyle != SeriesRenderStyle::Points )
+            {
+                series->RenderStyle = SeriesRenderStyle::Points;
+                series->CustomRendererFactory = nullptr;
+                changed = true;
+            }
+            break;
+        case ID_SERIES_STYLE_CUSTOM:
+            if ( series->RenderStyle != SeriesRenderStyle::Custom )
+            {
+                series->RenderStyle = SeriesRenderStyle::Custom;
+                series->CustomRendererFactory = []() {
+                    return std::unique_ptr<SeriesRenderer>(new DemoDiamondRenderer());
+                };
                 changed = true;
             }
             break;
@@ -1153,6 +1221,12 @@ void wxPlottingFrame::OnSeriesUpdateUI(wxUpdateUIEvent& event)
             break;
         case ID_SERIES_STYLE_FILL:
             event.Check(series->RenderStyle == SeriesRenderStyle::Fill);
+            break;
+        case ID_SERIES_STYLE_POINTS:
+            event.Check(series->RenderStyle == SeriesRenderStyle::Points);
+            break;
+        case ID_SERIES_STYLE_CUSTOM:
+            event.Check(series->RenderStyle == SeriesRenderStyle::Custom);
             break;
         default:
             break;

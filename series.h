@@ -114,6 +114,7 @@ public:
         : Visible(other.Visible),
           Foreground(other.Foreground),
           RenderStyle(other.RenderStyle),
+          CustomRendererFactory(other.CustomRendererFactory),
           HorizontalAxis(other.HorizontalAxis),
           VerticalAxis(other.VerticalAxis),
           m_name(other.m_name),
@@ -135,6 +136,7 @@ public:
         const bool visible = other.Visible;
         const wxColor foreground = other.Foreground;
         const SeriesRenderStyle renderStyle = other.RenderStyle;
+        const SeriesRendererFactory customFactory = other.CustomRendererFactory;
         const wxString horz = other.HorizontalAxis;
         const wxString vert = other.VerticalAxis;
         const wxString name = other.m_name;
@@ -149,6 +151,7 @@ public:
         Visible = visible;
         Foreground = foreground;
         RenderStyle = renderStyle;
+        CustomRendererFactory = customFactory;
         HorizontalAxis = horz;
         VerticalAxis = vert;
         m_name = name;
@@ -169,6 +172,7 @@ public:
         : Visible(other.Visible),
           Foreground(std::move(other.Foreground)),
           RenderStyle(other.RenderStyle),
+          CustomRendererFactory(std::move(other.CustomRendererFactory)),
           HorizontalAxis(std::move(other.HorizontalAxis)),
           VerticalAxis(std::move(other.VerticalAxis)),
           m_name(std::move(other.m_name)),
@@ -190,6 +194,7 @@ public:
         Visible = other.Visible;
         Foreground = std::move(other.Foreground);
         RenderStyle = other.RenderStyle;
+        CustomRendererFactory = std::move(other.CustomRendererFactory);
         HorizontalAxis = std::move(other.HorizontalAxis);
         VerticalAxis = std::move(other.VerticalAxis);
         m_name = std::move(other.m_name);
@@ -332,11 +337,23 @@ public:
     /**
      * @brief How samples are stroked when the series is drawn.
      * @details A short-lived @ref SeriesRenderer is created for this style for
-     *          each draw pass (@ref CreateSeriesRenderer).
-     * @see SeriesRenderStyle, SeriesRenderer
+     *          each draw pass (@ref CreateSeriesRenderer). For
+     *          @ref SeriesRenderStyle::Custom, set @ref CustomRendererFactory.
+     * @see SeriesRenderStyle, SeriesRenderer, CustomRendererFactory
      * @note Not mutex-protected; set on the UI thread.
      */
     SeriesRenderStyle RenderStyle = SeriesRenderStyle::Line;
+
+    /**
+     * @brief Factory for @ref SeriesRenderStyle::Custom.
+     * @details Invoked on each draw pass to create a host-supplied
+     *          @ref SeriesRenderer (e.g. a subclass that draws markers or
+     *          specialized strokes). The plot owns the returned instance for
+     *          that pass only. Leave empty for built-in styles.
+     * @note Not mutex-protected; set on the UI thread.
+     * @see SeriesRendererFactory, SeriesRenderStyle::Custom
+     */
+    SeriesRendererFactory CustomRendererFactory;
 
     /**
      * @brief Name of the horizontal @ref Axis this series uses for X mapping.

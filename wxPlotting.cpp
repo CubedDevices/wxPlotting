@@ -649,18 +649,26 @@ namespace
             }
         };
 
-        // Single-point series: hit disk around the sample.
-        if ( mapped.size() == 1 && mapped[0].valid )
+        // Points (and single-sample series): hit disk around each sample only.
+        if ( series.RenderStyle == SeriesRenderStyle::Points ||
+             mapped.size() == 1 )
         {
-            const double dx = canvasPos.x - mapped[0].screen.x;
-            const double dy = canvasPos.y - mapped[0].screen.y;
-            const double d = std::sqrt(dx * dx + dy * dy);
-            if ( d <= static_cast<double>(tolerancePx) )
+            for ( const auto& m : mapped )
             {
-                best.hit = true;
-                best.distance = d;
-                best.sampleIndex = mapped[0].index;
-                best.dataPoint = mapped[0].data;
+                if ( !m.valid )
+                    continue;
+                const double dx = canvasPos.x - m.screen.x;
+                const double dy = canvasPos.y - m.screen.y;
+                const double d = std::sqrt(dx * dx + dy * dy);
+                if ( d > static_cast<double>(tolerancePx) )
+                    continue;
+                if ( !best.hit || d < best.distance )
+                {
+                    best.hit = true;
+                    best.distance = d;
+                    best.sampleIndex = m.index;
+                    best.dataPoint = m.data;
+                }
             }
             return best;
         }
@@ -685,6 +693,7 @@ namespace
             }
             else
             {
+                // Line, Fill, Custom (default): hit polyline segments.
                 considerSegment(a, b,
                                 mapped[i - 1].index, mapped[i].index,
                                 mapped[i - 1].data, mapped[i].data);
@@ -1227,8 +1236,12 @@ void wxPlotting::DrawSeries(wxMemoryDC& dc, const wxSize& size)
 
         // Renderer lives only for this series draw pass. It receives
         // axis-converted coordinates and maps them to pixels via m_plot.
+        // Custom style uses Series::CustomRendererFactory (may return null).
         std::unique_ptr<SeriesRenderer> renderer =
-            CreateSeriesRenderer(iter->RenderStyle);
+            CreateSeriesRenderer(*iter);
+        if ( !renderer )
+            continue;
+
         renderer->Begin(dc, *iter, m_plot);
         // Fill style closes to the lower edge of the vertical axis band.
         {

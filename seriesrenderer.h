@@ -32,6 +32,7 @@
     #include "wx/gdicmn.h"
 #endif
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -68,7 +69,20 @@ enum class SeriesRenderStyle
      *          polyline down to the lower edge of the bound vertical axis span.
      *          The curve outline is stroked with the series foreground colour.
      */
-    Fill
+    Fill,
+
+    /**
+     * @brief Discrete markers at each sample; no connecting lines.
+     */
+    Points,
+
+    /**
+     * @brief User-supplied renderer via @ref Series::CustomRendererFactory.
+     * @details Each draw pass calls the factory to obtain a short-lived
+     *          @ref SeriesRenderer (subclass supplied by the host). If the
+     *          factory is empty or returns null, the series is skipped.
+     */
+    Custom
 };
 
 /**
@@ -151,6 +165,15 @@ protected:
 };
 
 /**
+ * @brief Factory that creates a short-lived @ref SeriesRenderer for one draw pass.
+ * @details Used when @ref SeriesRenderStyle::Custom is set. The returned
+ *          renderer is owned by the plot for the duration of that series'
+ *          Begin / AddPoint / End cycle, then destroyed.
+ * @see Series::CustomRendererFactory
+ */
+using SeriesRendererFactory = std::function<std::unique_ptr<SeriesRenderer>()>;
+
+/**
  * @class SeriesLineRenderer
  * @brief Connects successive points with @c wxDC::DrawLine.
  */
@@ -211,12 +234,31 @@ private:
 };
 
 /**
- * @brief Create a renderer for the given style.
- * @param style Desired stroke style.
- * @return New renderer; caller owns the lifetime (destroy after @ref SeriesRenderer::End).
+ * @class SeriesPointsRenderer
+ * @brief Draws a small filled marker at each sample (no connecting lines).
+ */
+class SeriesPointsRenderer : public SeriesRenderer
+{
+public:
+    void Begin(wxDC& dc, const Series& series, const wxRect& plot) override;
+    void AddPoint(const wxRealPoint& plotPt) override;
+    void Break() override;
+    void End() override;
+
+private:
+    wxColour m_colour;
+    int      m_radius = 2;
+};
+
+/**
+ * @brief Create a renderer for a series draw pass.
+ * @param series Series providing @ref Series::RenderStyle and, for
+ *        @ref SeriesRenderStyle::Custom, @ref Series::CustomRendererFactory.
+ * @return New renderer; caller owns the lifetime (destroy after
+ *         @ref SeriesRenderer::End). Null if Custom and no usable factory.
  * @note Intended for stack/@c unique_ptr use around a single series draw pass.
  */
-std::unique_ptr<SeriesRenderer> CreateSeriesRenderer(SeriesRenderStyle style);
+std::unique_ptr<SeriesRenderer> CreateSeriesRenderer(const Series& series);
 
 #endif // SERIESRENDERER_H
 

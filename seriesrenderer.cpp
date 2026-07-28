@@ -190,18 +190,60 @@ void SeriesFillRenderer::End()
 }
 
 // ----------------------------------------------------------------------------
+// SeriesPointsRenderer
+// ----------------------------------------------------------------------------
+
+void SeriesPointsRenderer::Begin(wxDC& dc, const Series& series, const wxRect& plot)
+{
+    m_dc = &dc;
+    m_plot = plot;
+    m_colour = series.Foreground;
+    m_radius = 2;
+    dc.SetPen(wxPen(m_colour));
+    dc.SetBrush(wxBrush(m_colour));
+}
+
+void SeriesPointsRenderer::AddPoint(const wxRealPoint& plotPt)
+{
+    if ( !m_dc )
+        return;
+
+    const wxPoint screen = ToScreen(plotPt);
+    // Small filled disc; no segments between samples.
+    m_dc->DrawCircle(screen, m_radius);
+}
+
+void SeriesPointsRenderer::Break()
+{
+    // Nothing to flush — points are independent.
+}
+
+void SeriesPointsRenderer::End()
+{
+    m_dc = nullptr;
+}
+
+// ----------------------------------------------------------------------------
 // factory
 // ----------------------------------------------------------------------------
 
-std::unique_ptr<SeriesRenderer> CreateSeriesRenderer(SeriesRenderStyle style)
+std::unique_ptr<SeriesRenderer> CreateSeriesRenderer(const Series& series)
 {
-    switch ( style )
+    switch ( series.RenderStyle )
     {
         case SeriesRenderStyle::StairStep:
             return std::unique_ptr<SeriesRenderer>(new SeriesStairStepRenderer());
 
         case SeriesRenderStyle::Fill:
             return std::unique_ptr<SeriesRenderer>(new SeriesFillRenderer());
+
+        case SeriesRenderStyle::Points:
+            return std::unique_ptr<SeriesRenderer>(new SeriesPointsRenderer());
+
+        case SeriesRenderStyle::Custom:
+            if ( series.CustomRendererFactory )
+                return series.CustomRendererFactory();
+            return nullptr;
 
         case SeriesRenderStyle::Line:
         default:
