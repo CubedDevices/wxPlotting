@@ -23,7 +23,7 @@ AS=as
 # Macros
 CND_PLATFORM=GNU-Linux
 CND_DLIB_EXT=so
-CND_CONF=Release
+CND_CONF=Debug
 CND_DISTDIR=dist
 CND_BUILDDIR=build
 
@@ -35,9 +35,8 @@ OBJECTDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}
 
 # Object Files
 OBJECTFILES= \
-	${OBJECTDIR}/_ext/29dd86f/seriesrenderer.o \
-	${OBJECTDIR}/_ext/29dd86f/wxPlotting.o \
-	${OBJECTDIR}/_ext/29dd86f/wxPlottingApp.o
+	${OBJECTDIR}/_ext/7ea65360/seriesrenderer.o \
+	${OBJECTDIR}/_ext/7ea65360/wxPlotting.o
 
 
 # C Compiler Flags
@@ -54,30 +53,27 @@ FFLAGS=
 ASFLAGS=
 
 # Link Libraries and Options
-LDLIBSOPTIONS=`wx-config --libs`  
+LDLIBSOPTIONS=
 
 # Build Targets
 .build-conf: ${BUILD_SUBPROJECTS}
-	"${MAKE}"  -f nbproject/Makefile-${CND_CONF}.mk ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/wxPlotting
+	"${MAKE}"  -f nbproject/Makefile-${CND_CONF}.mk ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxplotting.a
 
-${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/wxPlotting: ${OBJECTFILES}
+${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxplotting.a: ${OBJECTFILES}
 	${MKDIR} -p ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}
-	${LINK.cc} -o ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/wxPlotting ${OBJECTFILES} ${LDLIBSOPTIONS}
+	${RM} ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxplotting.a
+	${AR} -rv ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxplotting.a ${OBJECTFILES} 
+	$(RANLIB) ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/libwxplotting.a
 
-${OBJECTDIR}/_ext/29dd86f/seriesrenderer.o: ../../seriesrenderer.cpp
-	${MKDIR} -p ${OBJECTDIR}/_ext/29dd86f
+${OBJECTDIR}/_ext/7ea65360/seriesrenderer.o: ../../../seriesrenderer.cpp
+	${MKDIR} -p ${OBJECTDIR}/_ext/7ea65360
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/_ext/29dd86f/seriesrenderer.o ../../seriesrenderer.cpp
+	$(COMPILE.cc) -g -I../../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/_ext/7ea65360/seriesrenderer.o ../../../seriesrenderer.cpp
 
-${OBJECTDIR}/_ext/29dd86f/wxPlotting.o: ../../wxPlotting.cpp
-	${MKDIR} -p ${OBJECTDIR}/_ext/29dd86f
+${OBJECTDIR}/_ext/7ea65360/wxPlotting.o: ../../../wxPlotting.cpp
+	${MKDIR} -p ${OBJECTDIR}/_ext/7ea65360
 	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/_ext/29dd86f/wxPlotting.o ../../wxPlotting.cpp
-
-${OBJECTDIR}/_ext/29dd86f/wxPlottingApp.o: ../../wxPlottingApp.cpp
-	${MKDIR} -p ${OBJECTDIR}/_ext/29dd86f
-	${RM} "$@.d"
-	$(COMPILE.cc) -O2 -I../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/_ext/29dd86f/wxPlottingApp.o ../../wxPlottingApp.cpp
+	$(COMPILE.cc) -g -I../../.. -MMD -MP -MF "$@.d" -o ${OBJECTDIR}/_ext/7ea65360/wxPlotting.o ../../../wxPlotting.cpp
 
 # Subprojects
 .build-subprojects:

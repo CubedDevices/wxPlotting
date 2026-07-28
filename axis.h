@@ -1,3 +1,27 @@
+/////////////////////////////////////////////////////////////////////////////
+// Name:        axis.h
+// Purpose:     Axis definition used by wxPlotting
+// Copyright:   Kenneth S. Davis, 2026
+// Licence:     GNU General Public License version 2
+/////////////////////////////////////////////////////////////////////////////
+//
+// Copyright (C) 2026 Kenneth S. Davis
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+//
+/////////////////////////////////////////////////////////////////////////////
 #ifndef AXIS_H
 #define AXIS_H
 
@@ -29,10 +53,12 @@
  * Configure on the UI thread, then call @ref wxPlotting::UpdatePlot.
  *
  * **Coordinate model**
- * - @ref SetRange maps real-world values (e.g. seconds, volts).
- * - @ref SetPosition sets the axis extent in normalized plot space [0, 1].
- * - @ref SetLocation places the axis line across the perpendicular direction.
- * - @ref ConvertValue maps a data value into normalized plot space.
+ * - Series samples and @ref SetRange share the same unit space (e.g. seconds).
+ * - @ref Scale multiplies values for display across the whole axis: tick labels,
+ *   measurement cursors, and the interpreted meaning of the range
+ *   (e.g. Scale = 1000 shows milliseconds while data/range stay in seconds).
+ * - Plot placement uses unscaled range and samples (@ref ConvertValue).
+ * - @ref SetPosition / @ref SetLocation use normalized plot space [0, 1].
  */
 class Axis
 {
@@ -137,20 +163,21 @@ public:
      * @brief printf-style format for tick values (one floating argument).
      * @details Examples: @c "%g", @c "%.0f", @c "%.2f", @c "%+0.1f".
      *          Empty falls back to @c "%g" when formatting via @ref FormatTickValue.
-     *          Used for axis tick labels and measurement-cursor readouts.
+     *          Formatting is applied after @ref Scale (display units).
      */
     wxString TickLabelFormat;
 
     /**
-     * @brief Format a data value with @ref TickLabelFormat (same as tick labels).
-     * @param value Data value in axis range units.
-     * @return Formatted string; empty format falls back to @c "%g".
+     * @brief Format an axis value for ticks/cursors (applies @ref Scale first).
+     * @param value Value in range / sample units (same space as @ref SetRange).
+     * @return Formatted string of @c value * Scale; empty format falls back to @c "%g".
      */
     wxString FormatTickValue(double value) const
     {
+        const double display = ApplyScale(value);
         if ( TickLabelFormat.IsEmpty() )
-            return wxString::Format(wxT("%g"), value);
-        return wxString::Format(TickLabelFormat, value);
+            return wxString::Format(wxT("%g"), display);
+        return wxString::Format(TickLabelFormat, display);
     }
 
     wxString Label;         ///< Axis title text (defaults to the axis name).
@@ -178,7 +205,15 @@ public:
 
     int      GridWidth;     ///< Grid line width in pixels.
 
-    double   Scale;         ///< Reserved for future scaling; not used by drawing yet.
+    /**
+     * @brief Display multiplier for the whole axis (range, ticks, cursors).
+     * @details Does not change plot placement: samples and @ref SetRange stay
+     *          in the same unit space. @ref FormatTickValue multiplies by Scale
+     *          so labels/cursors show the scaled meaning (e.g. Scale = 1000 for
+     *          milliseconds while range remains in seconds). Default is @c 1.0.
+     * @note Not mutex-protected; set on the UI thread, then @ref wxPlotting::UpdatePlot.
+     */
+    double   Scale;
 
     /**
      * @brief Set the axis extent in normalized plot space.
@@ -208,9 +243,11 @@ public:
     }
 
     /**
-     * @brief Set the data value range mapped onto the axis.
-     * @param start Data value at the axis start (e.g. 0 seconds, -3.3 V).
-     * @param end Data value at the axis end (e.g. 100 seconds, +3.3 V).
+     * @brief Set the value range mapped onto the axis (sample / data units).
+     * @param start Value at the axis start (e.g. 0 seconds, -3.3 V).
+     * @param end Value at the axis end (e.g. 256 seconds, +3.3 V).
+     * @details Same unit space as series samples. @ref Scale only affects
+     *          displayed tick/cursor numbers, not this range or plot placement.
      * @warning If @a start equals @a end, @ref ConvertValue returns the
      *          midpoint of the axis span (no divide-by-zero).
      */
@@ -221,17 +258,39 @@ public:
     }
 
     /**
-     * @brief Get the data range start.
+     * @brief Get the range start (sample / data units).
      */
     double GetRangeStart() const {
         return m_rangeStart;
     }
 
     /**
-     * @brief Get the data range end.
+     * @brief Get the range end (sample / data units).
      */
     double GetRangeEnd() const {
         return m_rangeEnd;
+    }
+
+    /**
+     * @brief Apply @ref Scale for display (ticks, cursors).
+     * @param value Value in range / sample units.
+     * @return @c value * Scale.
+     */
+    double ApplyScale(double value) const
+    {
+        return value * Scale;
+    }
+
+    /**
+     * @brief True if the sample lies within [@ref GetRangeStart, @ref GetRangeEnd].
+     * @param realValue Series sample (same units as the range; Scale not applied).
+     * @details Supports inverted ranges (@c end < @c start).
+     */
+    bool IsValueInRange(double realValue) const
+    {
+        if ( m_rangeStart <= m_rangeEnd )
+            return realValue >= m_rangeStart && realValue <= m_rangeEnd;
+        return realValue >= m_rangeEnd && realValue <= m_rangeStart;
     }
 
     /**
@@ -252,28 +311,41 @@ public:
     }
 
     /**
-     * @brief Map a data value into normalized plot coordinates along this axis.
-     * @param realValue Value in data units (same space as @ref SetRange).
+     * @brief Map a range/sample value into normalized plot coordinates.
+     * @param rangeValue Value in the same space as @ref SetRange (ticks, grids).
      * @return Position in the axis span [@ref GetStart, @ref GetEnd].
-     * @details If the data range width is zero, returns the midpoint of the
-     *          axis span instead of dividing by zero.
+     * @details Does not apply @ref Scale (placement only). Prefer
+     *          @ref ConvertValue for series samples (same mapping).
      */
-    double ConvertValue(double realValue) const
+    double ConvertRangeValue(double rangeValue) const
     {
         const double rangeSpan = m_rangeEnd - m_rangeStart;
         if ( rangeSpan == 0.0 )
             return (m_start + m_end) * 0.5;
 
-        const double axisPoint = (realValue - m_rangeStart) / rangeSpan;
+        const double axisPoint = (rangeValue - m_rangeStart) / rangeSpan;
         return m_start + (axisPoint * (m_end - m_start));
     }
 
     /**
-     * @brief Inverse of @ref ConvertValue: plot-normalized position → data value.
-     * @param plotNorm Position in the axis span [@ref GetStart, @ref GetEnd]
-     *        (same space as @ref ConvertValue output / screen mapping input).
-     * @return Data value in [@ref GetRangeStart, @ref GetRangeEnd].
-     * @details Used by measurement cursors to report axis values under the pointer.
+     * @brief Map a series sample into normalized plot coordinates.
+     * @param realValue Sample as stored on the series (same units as @ref SetRange).
+     * @return Position in the axis span [@ref GetStart, @ref GetEnd].
+     * @details Does not apply @ref Scale; display scaling is only in
+     *          @ref FormatTickValue. If the range width is zero, returns the
+     *          midpoint of the axis span.
+     */
+    double ConvertValue(double realValue) const
+    {
+        return ConvertRangeValue(realValue);
+    }
+
+    /**
+     * @brief Inverse of @ref ConvertValue: plot-normalized position → range units.
+     * @param plotNorm Position in the axis span [@ref GetStart, @ref GetEnd].
+     * @return Value in sample / range units ([@ref GetRangeStart, @ref GetRangeEnd]).
+     * @details Pass the result to @ref FormatTickValue for a cursor readout
+     *          (Scale is applied there).
      */
     double InverseConvertValue(double plotNorm) const
     {
@@ -299,3 +371,4 @@ protected:
 };
 
 #endif
+

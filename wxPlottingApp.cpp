@@ -1,9 +1,27 @@
 /////////////////////////////////////////////////////////////////////////////
 // Name:        wxPlottingApp.cpp
 // Purpose:     Test application hosting a wxPlotting control
-// Licence:     wxWindows licence
+// Copyright:   Kenneth S. Davis, 2026
+// Licence:     GNU General Public License version 2
 /////////////////////////////////////////////////////////////////////////////
-
+//
+// Copyright (C) 2026 Kenneth S. Davis
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+//
+/////////////////////////////////////////////////////////////////////////////
 #include "wxPlottingApp.h"
 #include "wxPlotting.h"
 
@@ -60,11 +78,15 @@ wxBEGIN_EVENT_TABLE(wxPlottingFrame, wxFrame)
                    wxPlottingFrame::OnCursorMenu)
     EVT_UPDATE_UI_RANGE(ID_CURSOR_OFF, ID_CURSOR_COMBINED,
                         wxPlottingFrame::OnCursorUpdateUI)
+
+    // Axis auto-arrange
+    EVT_MENU(ID_ARRANGE_VERTICAL,   wxPlottingFrame::OnArrangeMenu)
+    EVT_MENU(ID_ARRANGE_HORIZONTAL, wxPlottingFrame::OnArrangeMenu)
 wxEND_EVENT_TABLE()
 
 wxPlottingFrame::wxPlottingFrame()
     : wxFrame(nullptr, wxID_ANY, "wxPlotting Test",
-              wxDefaultPosition, wxSize(800, 600)),
+              wxDefaultPosition, wxSize(920, 720)),
       m_plot(nullptr)
 {
     // Menu bar
@@ -78,6 +100,7 @@ wxPlottingFrame::wxPlottingFrame()
     menuBar->Append(fileMenu, "&File");
     BuildPropertyMenus(menuBar);
     BuildCursorMenu(menuBar);
+    BuildArrangeMenu(menuBar);
     menuBar->Append(helpMenu, "&Help");
     SetMenuBar(menuBar);
 
@@ -532,6 +555,7 @@ wxPlottingFrame::wxPlottingFrame()
     sizer->Add(m_plot, 1, wxEXPAND | wxALL, 0);
     SetSizer(sizer);
 
+    m_plot->SetMinDrawingSize(wxSize(800, 600));
     Centre();
 }
 
@@ -587,7 +611,7 @@ void wxPlottingFrame::BuildPropertyMenus(wxMenuBar* menuBar)
     axisMenu->Append(ID_AXIS_RANGE_END, "Range e&nd...",
                      "Data range end (e.g. volts)");
     axisMenu->Append(ID_AXIS_SCALE, "Sca&le...",
-                     "Reserved scale factor");
+                     "Display multiplier for range/ticks/cursors (e.g. 1000 for ms labels)");
     axisMenu->AppendSeparator();
 
     axisMenu->AppendCheckItem(ID_AXIS_TICK_VISIBLE, "&Tick marks",
@@ -655,6 +679,7 @@ void wxPlottingFrame::BuildPropertyMenus(wxMenuBar* menuBar)
         wxMenu* styleMenu = new wxMenu;
         styleMenu->AppendRadioItem(ID_SERIES_STYLE_LINE, "&Line");
         styleMenu->AppendRadioItem(ID_SERIES_STYLE_STAIR, "&Stair step");
+        styleMenu->AppendRadioItem(ID_SERIES_STYLE_FILL, "&Fill");
         seriesMenu->AppendSubMenu(styleMenu, "&Render style");
     }
     seriesMenu->AppendSeparator();
@@ -679,6 +704,38 @@ void wxPlottingFrame::BuildCursorMenu(wxMenuBar* menuBar)
     cursorMenu->AppendRadioItem(ID_CURSOR_COMBINED, "&Combined",
                                 "Crosshair with both axis values");
     menuBar->Append(cursorMenu, "&Cursor");
+}
+
+void wxPlottingFrame::BuildArrangeMenu(wxMenuBar* menuBar)
+{
+    wxMenu* arrangeMenu = new wxMenu;
+    arrangeMenu->Append(ID_ARRANGE_VERTICAL, "Arrange &Vertical Axes",
+                        "Tile visible vertical axes top-to-bottom with gaps");
+    arrangeMenu->Append(ID_ARRANGE_HORIZONTAL, "Arrange &Horizontal Axes",
+                        "Tile visible horizontal axes left-to-right with gaps");
+    menuBar->Append(arrangeMenu, "&Arrange");
+}
+
+void wxPlottingFrame::OnArrangeMenu(wxCommandEvent& event)
+{
+    if ( !m_plot )
+        return;
+
+    switch ( event.GetId() )
+    {
+        case ID_ARRANGE_VERTICAL:
+            m_plot->ArrangeVerticalAxes();
+            SetStatusText(wxT("Arranged vertical axes (top to bottom)"));
+            break;
+        case ID_ARRANGE_HORIZONTAL:
+            m_plot->ArrangeHorizontalAxes();
+            SetStatusText(wxT("Arranged horizontal axes (left to right)"));
+            break;
+        default:
+            return;
+    }
+
+    RefreshPlot();
 }
 
 Axis* wxPlottingFrame::DemoAxis() const
@@ -1055,6 +1112,13 @@ void wxPlottingFrame::OnSeriesMenu(wxCommandEvent& event)
                 changed = true;
             }
             break;
+        case ID_SERIES_STYLE_FILL:
+            if ( series->RenderStyle != SeriesRenderStyle::Fill )
+            {
+                series->RenderStyle = SeriesRenderStyle::Fill;
+                changed = true;
+            }
+            break;
         case ID_SERIES_HORZ_AXIS:
             changed = EditString(wxT("Horizontal axis name"), series->HorizontalAxis);
             break;
@@ -1086,6 +1150,9 @@ void wxPlottingFrame::OnSeriesUpdateUI(wxUpdateUIEvent& event)
             break;
         case ID_SERIES_STYLE_STAIR:
             event.Check(series->RenderStyle == SeriesRenderStyle::StairStep);
+            break;
+        case ID_SERIES_STYLE_FILL:
+            event.Check(series->RenderStyle == SeriesRenderStyle::Fill);
             break;
         default:
             break;
@@ -1557,3 +1624,4 @@ void wxPlottingFrame::OnPlotMotion(wxMouseEvent& event)
     UpdateHitStatus(m_plot->HitTest(event.GetPosition()), false);
     event.Skip();
 }
+

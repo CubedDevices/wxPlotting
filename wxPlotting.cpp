@@ -1,9 +1,27 @@
 /////////////////////////////////////////////////////////////////////////////
 // Name:        wxPlotting.cpp
 // Purpose:     Owner-drawn plotting control (MemoryDC double-buffer template)
-// Licence:     wxWindows licence
+// Copyright:   Kenneth S. Davis, 2026
+// Licence:     GNU General Public License version 2
 /////////////////////////////////////////////////////////////////////////////
-
+//
+// Copyright (C) 2026 Kenneth S. Davis
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+//
+/////////////////////////////////////////////////////////////////////////////
 #include "wxPlotting.h"
 #include "seriesrenderer.h"
 #include "plotcoords.h"
@@ -11,6 +29,7 @@
 #include "wx/dcclient.h"
 #include "wx/dcmemory.h"
 #include "wx/settings.h"
+#include "wx/timer.h"
 
 #include <cmath>
 #include <limits>
@@ -23,7 +42,7 @@
 // Minimum canvas floor.  The effective canvas grows with the client area
 // above this; scrollbars appear only when the client is smaller.
 // Raise the minimum later (SetMinDrawingHeight) as series data is added.
-const wxSize wxPlotting::DefaultMinDrawingSize(400, 200);
+const wxSize wxPlotting::DefaultMinDrawingSize(240, 240);
 
 // ----------------------------------------------------------------------------
 // event table / RTTI
@@ -86,15 +105,21 @@ bool wxPlotting::Create(wxWindow* parent,
     SetScrollRate(20, 20);
     EnableScrolling(true, true);
 
+    m_updateThrottleTimer.SetOwner(this);
+    Bind(wxEVT_TIMER, &wxPlotting::OnUpdateThrottleTimer, this);
+
     SyncDrawingSizeToClient();
     RecreateBuffer();
     Render();
+    m_lastFlushMs = wxGetLocalTimeMillis();
 
     return true;
 }
 
 wxPlotting::~wxPlotting()
 {
+    if ( m_updateThrottleTimer.IsRunning() )
+        m_updateThrottleTimer.Stop();
 }
 
 // ----------------------------------------------------------------------------
@@ -227,15 +252,180 @@ const Series* wxPlotting::GetSeries(const wxString& name) const
 }
 
 
+void wxPlotting::ArrangeVerticalAxes(double spacing)
+{
+    // Top → bottom: first registered visible vertical axis is highest on screen.
+    ArrangeAxesOfType(Axis::Vertical, spacing, true);
+}
+
+void wxPlotting::ArrangeHorizontalAxes(double spacing)
+{
+    // Left → right: first registered visible horizontal axis is leftmost.
+    ArrangeAxesOfType(Axis::Horizontal, spacing, false);
+}
+
+void wxPlotting::ArrangeAxesOfType(Axis::AxisType type, double spacing, bool topToBottom)
+{
+    if ( spacing < 0.0 )
+        spacing = 0.0;
+
+    // Collect pointers in registration order (stable layout order).
+    std::vector<Axis*> axes;
+    axes.reserve(m_axisList.size());
+    for ( auto& axis : m_axisList )
+    {
+        if ( !axis.Visible )
+            continue;
+        if ( axis.GetAxisType() != type )
+            continue;
+        axes.insert(axes.begin(), &axis);
+        //axes.push_back(&axis);
+    }
+
+    const size_t n = axes.size();
+    if ( n == 0 )
+        return;
+
+    if ( n == 1 )
+    {
+        axes[0]->SetPosition(0.0, 1.0);
+        return;
+    }
+
+    // Equal bands with fixed gaps; shrink gaps if they would leave no room.
+    const double minBand = 0.02;
+    double gap = spacing;
+    double totalGap = gap * static_cast<double>(n - 1);
+    double usable = 1.0 - totalGap;
+    if ( usable < minBand * static_cast<double>(n) )
+    {
+        usable = minBand * static_cast<double>(n);
+        if ( usable > 1.0 )
+            usable = 1.0;
+        totalGap = 1.0 - usable;
+        gap = totalGap / static_cast<double>(n - 1);
+    }
+
+    const double band = usable / static_cast<double>(n);
+
+    for ( size_t i = 0; i < n; ++i )
+    {
+        double lo = 0.0;
+        double hi = 1.0;
+
+        if ( type == Axis::Vertical && topToBottom )
+        {
+            // i = 0 at top (high normalized Y), then downward.
+            hi = 1.0 - static_cast<double>(i) * (band + gap);
+            lo = hi - band;
+        }
+        else
+        {
+            // Horizontal (or bottom-to-top if ever requested): low → high.
+            lo = static_cast<double>(i) * (band + gap);
+            hi = lo + band;
+        }
+
+        // Numerical safety into [0, 1].
+        if ( lo < 0.0 ) lo = 0.0;
+        if ( hi > 1.0 ) hi = 1.0;
+        if ( lo > hi )
+        {
+            const double t = lo;
+            lo = hi;
+            hi = t;
+        }
+
+        axes[i]->SetPosition(lo, hi);
+    }
+}
+
 void wxPlotting::UpdatePlot(bool forceImmediate)
 {
-    // Rebuild the off-screen buffer, then ask the window to repaint.
-    // Avoid Update() by default so high-rate CallAfter(UpdatePlot) does not
-    // force a synchronous paint storm on the UI thread.
-    Render();
-    Refresh(false);
+    // Mark a full buffer rebuild. High-rate callers (axis drag, streaming)
+    // are coalesced to ~kMaxUpdateHz with a trailing flush so the last
+    // state is always shown without saturating the UI thread on Windows.
+    m_fullUpdatePending = true;
+
+    if ( forceImmediate )
+    {
+        if ( m_updateThrottleTimer.IsRunning() )
+            m_updateThrottleTimer.Stop();
+        FlushPendingUpdate(true);
+        return;
+    }
+
+    const wxLongLong now = wxGetLocalTimeMillis();
+    const wxLongLong minIntervalMs = 1000 / kMaxUpdateHz; // ~16 ms at 60 Hz
+    const wxLongLong elapsed = now - m_lastFlushMs;
+
+    if ( m_lastFlushMs == 0 || elapsed >= minIntervalMs )
+    {
+        if ( m_updateThrottleTimer.IsRunning() )
+            m_updateThrottleTimer.Stop();
+        FlushPendingUpdate(false);
+        return;
+    }
+
+    // Too soon: schedule a trailing update for the remainder of the interval.
+    if ( !m_updateThrottleTimer.IsRunning() )
+    {
+        int delay = static_cast<int>((minIntervalMs - elapsed).GetValue());
+        if ( delay < 1 )
+            delay = 1;
+        m_updateThrottleTimer.StartOnce(delay);
+    }
+}
+
+void wxPlotting::RequestOverlayRefresh()
+{
+    m_overlayRefreshPending = true;
+
+    const wxLongLong now = wxGetLocalTimeMillis();
+    const wxLongLong minIntervalMs = 1000 / kMaxUpdateHz;
+    const wxLongLong elapsed = now - m_lastFlushMs;
+
+    if ( m_lastFlushMs == 0 || elapsed >= minIntervalMs )
+    {
+        if ( m_updateThrottleTimer.IsRunning() )
+            m_updateThrottleTimer.Stop();
+        FlushPendingUpdate(false);
+        return;
+    }
+
+    if ( !m_updateThrottleTimer.IsRunning() )
+    {
+        int delay = static_cast<int>((minIntervalMs - elapsed).GetValue());
+        if ( delay < 1 )
+            delay = 1;
+        m_updateThrottleTimer.StartOnce(delay);
+    }
+}
+
+void wxPlotting::FlushPendingUpdate(bool forceImmediate)
+{
+    const bool needRender = m_fullUpdatePending;
+    const bool needRefresh = m_fullUpdatePending || m_overlayRefreshPending;
+
+    m_fullUpdatePending = false;
+    m_overlayRefreshPending = false;
+
+    if ( needRender )
+        Render();
+
+    if ( needRefresh )
+        Refresh(false);
+
     if ( forceImmediate )
         Update();
+
+    m_lastFlushMs = wxGetLocalTimeMillis();
+}
+
+void wxPlotting::OnUpdateThrottleTimer(wxTimerEvent& WXUNUSED(event))
+{
+    if ( m_fullUpdatePending || m_overlayRefreshPending )
+        FlushPendingUpdate(false);
 }
 
 // ----------------------------------------------------------------------------
@@ -416,8 +606,7 @@ namespace
             m.index = i;
             m.data = points[i];
 
-            if ( points[i].x < horz.GetRangeStart() || points[i].x > horz.GetRangeEnd() ||
-                 points[i].y < vert.GetRangeStart() || points[i].y > vert.GetRangeEnd() )
+            if ( !horz.IsValueInRange(points[i].x) || !vert.IsValueInRange(points[i].y) )
             {
                 m.valid = false;
             }
@@ -892,7 +1081,9 @@ void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
                         break;
 
                     wxPoint tickPoint;
-                    double v = iter->ConvertValue(t_start);
+                    // Tick values are already in range/display units — do not
+                    // apply Axis::Scale (that is only for raw series samples).
+                    double v = iter->ConvertRangeValue(t_start);
                     if (iter->GetAxisType() == Axis::Horizontal)
                     {
                         tickPoint.x = (v / 1.0) * m_plot.GetWidth();
@@ -1039,6 +1230,11 @@ void wxPlotting::DrawSeries(wxMemoryDC& dc, const wxSize& size)
         std::unique_ptr<SeriesRenderer> renderer =
             CreateSeriesRenderer(iter->RenderStyle);
         renderer->Begin(dc, *iter, m_plot);
+        // Fill style closes to the lower edge of the vertical axis band.
+        {
+            const double lo = wxMin(vertAxis->GetStart(), vertAxis->GetEnd());
+            renderer->SetBaselinePlotY(lo);
+        }
 
         // Snapshot under the series mutex so a worker can append/replace
         // points while we draw without racing or holding the lock during GDI.
@@ -1049,12 +1245,9 @@ void wxPlotting::DrawSeries(wxMemoryDC& dc, const wxSize& size)
             ++ptIter
             )
         {
-            if (ptIter->x < horzAxis->GetRangeStart() || (ptIter->x > horzAxis->GetRangeEnd()))
-            {
-                renderer->Break();
-                continue;
-            }
-            if (ptIter->y < vertAxis->GetRangeStart() || (ptIter->y > vertAxis->GetRangeEnd()))
+            // Clip in scaled (range) units so Axis::Scale is respected.
+            if ( !horzAxis->IsValueInRange(ptIter->x) ||
+                 !vertAxis->IsValueInRange(ptIter->y) )
             {
                 renderer->Break();
                 continue;
@@ -1124,8 +1317,8 @@ void wxPlotting::OnMotion(wxMouseEvent& event)
         CalcUnscrolledPosition(event.GetX(), event.GetY(), &cx, &cy);
         m_cursorCanvasPos = wxPoint(cx, cy);
         m_cursorTracking = true;
-        // Overlay only — do not re-render the full plot buffer.
-        Refresh(false);
+        // Overlay only — rate-limited; do not re-render the full plot buffer.
+        RequestOverlayRefresh();
     }
     event.Skip();
 }
@@ -1135,7 +1328,11 @@ void wxPlotting::OnLeaveWindow(wxMouseEvent& event)
     if ( m_cursorMode != PlotCursorMode::Off && m_cursorTracking )
     {
         m_cursorTracking = false;
-        Refresh(false);
+        // Hide promptly (infrequent); bypass throttle so the overlay vanishes.
+        m_overlayRefreshPending = true;
+        if ( m_updateThrottleTimer.IsRunning() )
+            m_updateThrottleTimer.Stop();
+        FlushPendingUpdate(false);
     }
     event.Skip();
 }
@@ -1153,7 +1350,11 @@ void wxPlotting::SetCursorMode(PlotCursorMode mode)
     if ( m_cursorMode == PlotCursorMode::Off )
         m_cursorTracking = false;
 
-    Refresh(false);
+    // Mode changes are infrequent — paint immediately.
+    m_overlayRefreshPending = true;
+    if ( m_updateThrottleTimer.IsRunning() )
+        m_updateThrottleTimer.Stop();
+    FlushPendingUpdate(false);
 }
 
 const Axis* wxPlotting::AxisOfTypeFromHit(const PlotHitResult& hit,
@@ -1251,3 +1452,4 @@ void wxPlotting::DrawCursors(wxDC& dc)
         dc.DrawText(readout, tx, ty);
     }
 }
+

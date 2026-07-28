@@ -1,9 +1,27 @@
 /////////////////////////////////////////////////////////////////////////////
 // Name:        wxPlotting.h
 // Purpose:     Owner-drawn plotting control (MemoryDC double-buffer template)
-// Licence:     wxWindows licence
+// Copyright:   Kenneth S. Davis, 2026
+// Licence:     GNU General Public License version 2
 /////////////////////////////////////////////////////////////////////////////
-
+//
+// Copyright (C) 2026 Kenneth S. Davis
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+//
+/////////////////////////////////////////////////////////////////////////////
 #ifndef WXPLOTTING_H
 #define WXPLOTTING_H
 
@@ -13,6 +31,7 @@
     #include "wx/scrolwin.h"
     #include "wx/bitmap.h"
     #include "wx/dcmemory.h"
+    #include "wx/timer.h"
 #endif
 
 #include <list>
@@ -201,12 +220,44 @@ public:
 
     /**
      * @brief Rebuild the off-screen plot and request a repaint.
-     * @param forceImmediate If @c false (default), only @c Refresh is used so
-     *        high-rate updates do not force synchronous paints. If @c true,
-     *        also calls @c Update() for an immediate paint.
+     * @param forceImmediate If @c false (default), full buffer rebuilds are
+     *        rate-limited to about 60 Hz so high-frequency callers (axis drag,
+     *        streaming data) cannot flood the UI thread. A trailing update is
+     *        always scheduled so the last state is painted. If @c true, rebuild
+     *        and paint immediately (also calls @c Update()).
      * @warning Must be called on the UI thread.
      */
     void UpdatePlot(bool forceImmediate = false);
+
+    /**
+     * @brief Auto-arrange visible vertical axes so their position spans do not overlap.
+     * @param spacing Normalized gap between adjacent axes (default @c 0.05).
+     * @details Distributes bands from top to bottom in registration order:
+     *          the first vertical axis gets the topmost band (e.g. ~0.55–1.0
+     *          for two axes), the next below it, and so on. Each band has
+     *          equal height; @a spacing is reserved between bands. Does not
+     *          repaint — call @ref UpdatePlot afterward.
+     * @note Only @ref Axis::Visible axes of type @ref Axis::Vertical are
+     *       rearranged. Hidden axes are left unchanged.
+     * @warning Must be called on the UI thread.
+     * @see ArrangeHorizontalAxes, Axis::SetPosition
+     */
+    void ArrangeVerticalAxes(double spacing = 0.05);
+
+    /**
+     * @brief Auto-arrange visible horizontal axes so their position spans do not overlap.
+     * @param spacing Normalized gap between adjacent axes (default @c 0.05).
+     * @details Distributes bands from left to right in registration order:
+     *          the first horizontal axis gets the leftmost band, then the next
+     *          to its right, and so on. Each band has equal width; @a spacing
+     *          is reserved between bands. Does not repaint — call
+     *          @ref UpdatePlot afterward.
+     * @note Only @ref Axis::Visible axes of type @ref Axis::Horizontal are
+     *       rearranged. Hidden axes are left unchanged.
+     * @warning Must be called on the UI thread.
+     * @see ArrangeVerticalAxes, Axis::SetPosition
+     */
+    void ArrangeHorizontalAxes(double spacing = 0.05);
 
     // --- Margins -----------------------------------------------------------
 
@@ -434,6 +485,11 @@ protected:
     void OnLeaveWindow(wxMouseEvent& event);
 
     /**
+     * @brief Trailing-edge timer for rate-limited @ref UpdatePlot / overlay refresh.
+     */
+    void OnUpdateThrottleTimer(wxTimerEvent& event);
+
+    /**
      * @brief Recreate the off-screen bitmap and update the plot rectangle.
      */
     void RecreateBuffer();
@@ -442,6 +498,18 @@ protected:
      * @brief Clear the buffer and call @ref DrawPlot.
      */
     void Render();
+
+    /**
+     * @brief Apply pending full rebuild and/or refresh (used by throttle path).
+     * @param forceImmediate When @c true, also call @c Update() after @c Refresh.
+     */
+    void FlushPendingUpdate(bool forceImmediate);
+
+    /**
+     * @brief Request a rate-limited overlay-only repaint (no buffer rebuild).
+     * @details Used by measurement cursors during mouse motion.
+     */
+    void RequestOverlayRefresh();
 
     /**
      * @brief DrawSeries, called from @ref DrawPlot.
@@ -470,6 +538,15 @@ protected:
      */
     const Axis* AxisOfTypeFromHit(const PlotHitResult& hit, Axis::AxisType type) const;
 
+    /**
+     * @brief Shared implementation for @ref ArrangeVerticalAxes / @ref ArrangeHorizontalAxes.
+     * @param type Axis orientation to arrange.
+     * @param spacing Normalized gap between bands.
+     * @param topToBottomIfVertical When @c true and @a type is vertical, first
+     *        axis is placed at the top; horizontal always goes left-to-right.
+     */
+    void ArrangeAxesOfType(Axis::AxisType type, double spacing, bool topToBottom);
+
 private:
     std::list<Axis> m_axisList;
     std::list<Series> m_seriesList;
@@ -481,7 +558,7 @@ private:
     int m_marginLeft   = 80;
     int m_marginRight  = 40;
     int m_marginTop    = 40;
-    int m_marginBottom = 70;
+    int m_marginBottom = 80;
 
     wxSize m_minDrawingSize;
     wxSize m_drawingSize;
@@ -491,9 +568,20 @@ private:
     bool           m_cursorTracking = false; ///< True when pointer is over the control.
     wxPoint        m_cursorCanvasPos;        ///< Last mouse position in canvas coords.
 
+    // --- Paint rate limiting (~60 Hz) --------------------------------------
+    // High-frequency mouse motion (especially on Windows) can request more
+    // full-buffer rebuilds than the UI can sustain. Coalesce to this interval
+    // and always flush a trailing update so the final state is visible.
+    static const int kMaxUpdateHz = 60;
+    wxTimer    m_updateThrottleTimer;
+    wxLongLong m_lastFlushMs = 0;       ///< Time of last FlushPendingUpdate.
+    bool       m_fullUpdatePending = false;    ///< Need Render() before paint.
+    bool       m_overlayRefreshPending = false;///< Need Refresh only (cursors).
+
     wxDECLARE_DYNAMIC_CLASS(wxPlotting);
     wxDECLARE_EVENT_TABLE();
     wxDECLARE_NO_COPY_CLASS(wxPlotting);
 };
 
 #endif // WXPLOTTING_H
+

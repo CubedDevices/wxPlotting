@@ -1,9 +1,27 @@
 /////////////////////////////////////////////////////////////////////////////
 // Name:        wxPlottingApp.h
 // Purpose:     Test application hosting a wxPlotting control
-// Licence:     wxWindows licence
+// Copyright:   Kenneth S. Davis, 2026
+// Licence:     GNU General Public License version 2
 /////////////////////////////////////////////////////////////////////////////
-
+//
+// Copyright (C) 2026 Kenneth S. Davis
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+//
+/////////////////////////////////////////////////////////////////////////////
 #ifndef WXPLOTTINGAPP_H
 #define WXPLOTTINGAPP_H
 
@@ -100,6 +118,7 @@ private:
         ID_SERIES_FOREGROUND,
         ID_SERIES_STYLE_LINE,
         ID_SERIES_STYLE_STAIR,
+        ID_SERIES_STYLE_FILL,
         ID_SERIES_HORZ_AXIS,
         ID_SERIES_VERT_AXIS,
 
@@ -107,7 +126,11 @@ private:
         ID_CURSOR_OFF,
         ID_CURSOR_HORIZONTAL,
         ID_CURSOR_VERTICAL,
-        ID_CURSOR_COMBINED
+        ID_CURSOR_COMBINED,
+
+        // Axis auto-arrange
+        ID_ARRANGE_VERTICAL,
+        ID_ARRANGE_HORIZONTAL
     };
 
     void OnExit(wxCommandEvent& event);
@@ -135,6 +158,11 @@ private:
 
     /** Build &Cursor menu (measurement cursor modes). */
     void BuildCursorMenu(wxMenuBar* menuBar);
+
+    /** Build &Arrange menu (auto-layout axis bands). */
+    void BuildArrangeMenu(wxMenuBar* menuBar);
+
+    void OnArrangeMenu(wxCommandEvent& event);
 
     /** Resolve demo objects (null if missing). */
     Axis*   DemoAxis() const;
@@ -173,3 +201,4 @@ private:
 };
 
 #endif // WXPLOTTINGAPP_H
+

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Static library project. Lives in build/Linux/wxPlotting/.
+    Sources remain at the repository root (../../../).
+    conf type 3 = Static Library.
+  -->
+<configurationDescriptor version="100">
+  <logicalFolder name="root" displayName="root" projectFiles="true" kind="ROOT">
+    <logicalFolder name="HeaderFiles"
+                   displayName="Header Files"
+                   projectFiles="true">
+      <itemPath>../../../axis.h</itemPath>
+      <itemPath>../../../plotcoords.h</itemPath>
+      <itemPath>../../../plothit.h</itemPath>
+      <itemPath>../../../series.h</itemPath>
+      <itemPath>../../../seriesrenderer.h</itemPath>
+      <itemPath>../../../wxPlotting.h</itemPath>
+    </logicalFolder>
+    <logicalFolder name="SourceFiles"
+                   displayName="Source Files"
+                   projectFiles="true">
+      <itemPath>../../../seriesrenderer.cpp</itemPath>
+      <itemPath>../../../wxPlotting.cpp</itemPath>
+    </logicalFolder>
+    <logicalFolder name="ExternalFiles"
+                   displayName="Important Files"
+                   projectFiles="false"
+                   kind="IMPORTANT_FILES_FOLDER">
+      <itemPath>Makefile</itemPath>
+    </logicalFolder>
+  </logicalFolder>
+  <sourceRootList>
+    <Elem>../../..</Elem>
+  </sourceRootList>
+  <projectmakefile>Makefile</projectmakefile>
+  <confs>
+    <conf name="Debug" type="3">
+      <toolsSet>
+        <compilerSet>default</compilerSet>
+        <dependencyChecking>true</dependencyChecking>
+        <rebuildPropChanged>false</rebuildPropChanged>
+      </toolsSet>
+      <compileType>
+        <ccTool>
+          <incDir>
+            <pElem>../../..</pElem>
+          </incDir>
+          <commandLine>`wx-config --cxxflags`</commandLine>
+        </ccTool>
+        <archiverTool>
+        </archiverTool>
+      </compileType>
+      <item path="../../../axis.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../plotcoords.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../plothit.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../series.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../seriesrenderer.cpp" ex="false" tool="1" flavor2="0">
+      </item>
+      <item path="../../../seriesrenderer.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../wxPlotting.cpp" ex="false" tool="1" flavor2="0">
+      </item>
+      <item path="../../../wxPlotting.h" ex="false" tool="3" flavor2="0">
+      </item>
+    </conf>
+    <conf name="Release" type="3">
+      <toolsSet>
+        <compilerSet>default</compilerSet>
+        <dependencyChecking>true</dependencyChecking>
+        <rebuildPropChanged>false</rebuildPropChanged>
+      </toolsSet>
+      <compileType>
+        <ccTool>
+          <developmentMode>5</developmentMode>
+          <incDir>
+            <pElem>../../..</pElem>
+          </incDir>
+          <commandLine>`wx-config --cxxflags`</commandLine>
+        </ccTool>
+        <archiverTool>
+        </archiverTool>
+      </compileType>
+      <item path="../../../axis.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../plotcoords.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../plothit.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../series.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../seriesrenderer.cpp" ex="false" tool="1" flavor2="0">
+      </item>
+      <item path="../../../seriesrenderer.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="../../../wxPlotting.cpp" ex="false" tool="1" flavor2="0">
+      </item>
+      <item path="../../../wxPlotting.h" ex="false" tool="3" flavor2="0">
+      </item>
+    </conf>
+  </confs>
+</configurationDescriptor>
