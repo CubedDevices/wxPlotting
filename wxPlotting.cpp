@@ -278,7 +278,7 @@ void wxPlotting::ArrangeAxesOfType(Axis::AxisType type, double spacing, bool top
             continue;
         if ( axis.GetAxisType() != type )
             continue;
-        axes.insert(axes.begin(), &axis);
+        axes.push_back(&axis);
         //axes.push_back(&axis);
     }
 
