@@ -37,6 +37,7 @@ Global
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {91B67695-CC7C-4A94-AD03-51425DFA76AD}
 	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
+	GlobalSection(Performance) = preSolution
+		HasPerformanceSessions = true
 	EndGlobalSection
 EndGlobal
