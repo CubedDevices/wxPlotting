@@ -4,10 +4,9 @@ VisualStudioVersion = 15.0.37506.8
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "wxPlotting", "wxPlotting.vcxproj", "{BF909873-EFF1-4B74-8A86-1446F58D07E0}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "wxPlottingDemo", "wxPlottingDemo.vcxproj", "{C8E2A1F0-4B3D-4E9A-9C1F-7D6E5A4B3C2D}"
+EndProject
 Global
-	GlobalSection(Performance) = preSolution
-		HasPerformanceSessions = true
-	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
@@ -23,11 +22,21 @@ Global
 		{BF909873-EFF1-4B74-8A86-1446F58D07E0}.Release|x64.Build.0 = Release|x64
 		{BF909873-EFF1-4B74-8A86-1446F58D07E0}.Release|x86.ActiveCfg = Release|Win32
 		{BF909873-EFF1-4B74-8A86-1446F58D07E0}.Release|x86.Build.0 = Release|Win32
+		{C8E2A1F0-4B3D-4E9A-9C1F-7D6E5A4B3C2D}.Debug|x64.ActiveCfg = Debug|x64
+		{C8E2A1F0-4B3D-4E9A-9C1F-7D6E5A4B3C2D}.Debug|x64.Build.0 = Debug|x64
+		{C8E2A1F0-4B3D-4E9A-9C1F-7D6E5A4B3C2D}.Debug|x86.ActiveCfg = Debug|Win32
+		{C8E2A1F0-4B3D-4E9A-9C1F-7D6E5A4B3C2D}.Debug|x86.Build.0 = Debug|Win32
+		{C8E2A1F0-4B3D-4E9A-9C1F-7D6E5A4B3C2D}.Release|x64.ActiveCfg = Release|x64
+		{C8E2A1F0-4B3D-4E9A-9C1F-7D6E5A4B3C2D}.Release|x64.Build.0 = Release|x64
+		{C8E2A1F0-4B3D-4E9A-9C1F-7D6E5A4B3C2D}.Release|x86.ActiveCfg = Release|Win32
+		{C8E2A1F0-4B3D-4E9A-9C1F-7D6E5A4B3C2D}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {91B67695-CC7C-4A94-AD03-51425DFA76AD}
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
 	EndGlobalSection
 EndGlobal

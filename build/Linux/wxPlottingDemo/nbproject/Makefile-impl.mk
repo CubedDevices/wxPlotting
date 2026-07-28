@@ -24,7 +24,7 @@ CLEAN_SUBPROJECTS=${CLEAN_SUBPROJECTS_${SUBPROJECTS}}
 
 
 # Project Name
-PROJECTNAME=Linux
+PROJECTNAME=wxPlottingDemo
 
 # Active Configuration
 DEFAULTCONF=Debug

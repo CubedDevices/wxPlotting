@@ -266,3 +266,5 @@ nbproject/private/
 .dep.inc
 build/Linux/build/
 build/Linux/dist/
+build/Linux/*/build/
+build/Linux/*/dist/

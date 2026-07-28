@@ -3,14 +3,16 @@
     <type>org.netbeans.modules.cnd.makeproject</type>
     <configuration>
         <data xmlns="http://www.netbeans.org/ns/make-project/1">
-            <name>wxPlotting</name>
+            <name>wxPlottingDemo</name>
             <c-extensions/>
             <cpp-extensions>cpp</cpp-extensions>
             <header-extensions>h</header-extensions>
             <sourceEncoding>UTF-8</sourceEncoding>
-            <make-dep-projects/>
+            <make-dep-projects>
+                <make-dep-project>../wxPlotting</make-dep-project>
+            </make-dep-projects>
             <sourceRootList>
-                <sourceRootElem>../..</sourceRootElem>
+                <sourceRootElem>../../..</sourceRootElem>
             </sourceRootList>
             <confList>
                 <confElem>
