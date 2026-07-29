@@ -686,6 +686,8 @@ void wxPlottingFrame::BuildPropertyMenus(wxMenuBar* menuBar)
     }
     axisMenu->Append(ID_AXIS_TICK_RANGE, "Tick r&ange...",
                      "Spacing between ticks in data units");
+    axisMenu->Append(ID_AXIS_TICK_RANGE_MINIMUM, "Tick range &minimum...",
+                     "Host minimum tick spacing (metadata only; not used for drawing)");
     axisMenu->Append(ID_AXIS_TICK_FONT, "Tick &font...",
                      "Font for numeric tick labels");
     axisMenu->AppendCheckItem(ID_AXIS_TICK_LABEL_VISIBLE, "Tick la&bels",
@@ -1016,6 +1018,9 @@ void wxPlottingFrame::OnAxisMenu(wxCommandEvent& event)
             break;
         case ID_AXIS_TICK_RANGE:
             changed = EditDouble(wxT("Tick range"), axis->TickRange);
+            break;
+        case ID_AXIS_TICK_RANGE_MINIMUM:
+            changed = EditDouble(wxT("Tick range minimum"), axis->TickRangeMinimum);
             break;
         case ID_AXIS_TICK_FONT:
             changed = EditFont(wxT("Tick font"), axis->TickFont);

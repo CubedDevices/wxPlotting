@@ -111,6 +111,7 @@ public:
           TickColor(*wxLIGHT_GREY),
           TickSide(BelowOrLeft),
           TickRange(1.0),
+          TickRangeMinimum(0.0),
           TickFont(wxFontInfo(10).Family(wxFONTFAMILY_MODERN)),
           TickLabelVisible(false),
           TickLabelFormat("%g"),
@@ -155,6 +156,16 @@ public:
     wxColor  TickColor;    ///< Colour of tick marks and tick labels.
     LabelSide TickSide;    ///< Side of the axis line for ticks and tick labels.
     double   TickRange;    ///< Spacing between ticks in data units (must be > 0).
+
+    /**
+     * @brief Host-supplied minimum tick spacing in data units (metadata only).
+     * @details Not used by the plot when drawing ticks or grids. Applications
+     *          may store a floor here (e.g. for their own tick-policy logic)
+     *          while @ref TickRange remains the spacing used for rendering.
+     *          Default is @c 0.0.
+     * @see TickRange
+     */
+    double   TickRangeMinimum;
 
     /**
      * @brief Font for numeric tick labels.
