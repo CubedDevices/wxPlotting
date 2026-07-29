@@ -167,7 +167,8 @@ wxPlottingFrame::wxPlottingFrame()
     timeAxis.LabelSide = Axis::BelowOrLeft;
     timeAxis.SetLocation(0.0);
     timeAxis.SetPosition(0.0, 1.0);
-    timeAxis.SetRange(0, 256); // 0 to 100 seconds
+    timeAxis.SetRange(0, 256); // view window (sample units)
+    timeAxis.SetData(0, 256);  // absolute full data span
     timeAxis.TickRange = 10; // tick every 10 seconds
     timeAxis.TickColor = wxColor("Lime");
     timeAxis.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
@@ -191,7 +192,8 @@ wxPlottingFrame::wxPlottingFrame()
     a1.LabelSide = Axis::BelowOrLeft;
     a1.SetLocation(0.0);
     a1.SetPosition(0.77, 1.0);
-    a1.SetRange(-3.3, 3.3);   // += 3.3v
+    a1.SetRange(-3.3, 3.3);   // view window
+    a1.SetData(-3.3, 3.3);    // absolute data span
     a1.TickRange = 1.0;      // 1v ticks
     a1.TickColor = wxColor("Magenta");
     a1.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
@@ -215,7 +217,8 @@ wxPlottingFrame::wxPlottingFrame()
     a2.LabelSide = Axis::BelowOrLeft;
     a2.SetLocation(0.0);
     a2.SetPosition(0.50, 0.73);
-    a2.SetRange(-3.3, 3.3);   // += 3.3v
+    a2.SetRange(-3.3, 3.3);   // view window
+    a2.SetData(-3.3, 3.3);    // absolute data span
     a2.TickRange = 1.0; // 1v ticks
     a2.TickColor = (wxColor("Cyan"));
     a2.TickFont = wxFont(wxFontInfo(12).Family(wxFONTFAMILY_MODERN));
@@ -242,6 +245,7 @@ wxPlottingFrame::wxPlottingFrame()
     d0.SetLocation(0);
     d0.SetPosition(0.0, 0.04);
     d0.SetRange(0, 1);
+    d0.SetData(0, 1);
     d0.TickLabelVisible = false;
     d0.TickVisible = false;
     m_plot->AddAxis(d0);
@@ -259,6 +263,7 @@ wxPlottingFrame::wxPlottingFrame()
     d1.SetLocation(0);
     d1.SetPosition(0.05, 0.10);
     d1.SetRange(0, 1);
+    d1.SetData(0, 1);
     d1.TickLabelVisible = false;
     d1.TickVisible = false;
     m_plot->AddAxis(d1);
@@ -276,6 +281,7 @@ wxPlottingFrame::wxPlottingFrame()
     d2.SetLocation(0);
     d2.SetPosition(0.11, 0.16);
     d2.SetRange(0, 1);
+    d2.SetData(0, 1);
     d2.TickLabelVisible = false;
     d2.TickVisible = false;
     m_plot->AddAxis(d2);
@@ -293,6 +299,7 @@ wxPlottingFrame::wxPlottingFrame()
     d3.SetLocation(0);
     d3.SetPosition(0.17, 0.22);
     d3.SetRange(0, 1);
+    d3.SetData(0, 1);
     d3.TickLabelVisible = false;
     d3.TickVisible = false;
     m_plot->AddAxis(d3);
@@ -310,6 +317,7 @@ wxPlottingFrame::wxPlottingFrame()
     d4.SetLocation(0);
     d4.SetPosition(0.23, 0.28);
     d4.SetRange(0, 1);
+    d4.SetData(0, 1);
     d4.TickLabelVisible = false;
     d4.TickVisible = false;
     m_plot->AddAxis(d4);
@@ -327,6 +335,7 @@ wxPlottingFrame::wxPlottingFrame()
     d5.SetLocation(0);
     d5.SetPosition(0.29, 0.34);
     d5.SetRange(0, 1);
+    d5.SetData(0, 1);
     d5.TickLabelVisible = false;
     d5.TickVisible = false;
     m_plot->AddAxis(d5);
@@ -344,6 +353,7 @@ wxPlottingFrame::wxPlottingFrame()
     d6.SetLocation(0);
     d6.SetPosition(0.35, 0.40);
     d6.SetRange(0, 1);
+    d6.SetData(0, 1);
     d6.TickLabelVisible = false;
     d6.TickVisible = false;
     m_plot->AddAxis(d6);
@@ -361,6 +371,7 @@ wxPlottingFrame::wxPlottingFrame()
     d7.SetLocation(0);
     d7.SetPosition(0.41, 0.46);
     d7.SetRange(0, 1);
+    d7.SetData(0, 1);
     d7.TickLabelVisible = false;
     d7.TickVisible = false;
     m_plot->AddAxis(d7);
@@ -652,9 +663,13 @@ void wxPlottingFrame::BuildPropertyMenus(wxMenuBar* menuBar)
     axisMenu->Append(ID_AXIS_POS_END, "Position &end...",
                      "Normalized band end [0,1]");
     axisMenu->Append(ID_AXIS_RANGE_START, "&Range start...",
-                     "Data range start (e.g. volts)");
+                     "View range start (mapped window, e.g. volts)");
     axisMenu->Append(ID_AXIS_RANGE_END, "Range e&nd...",
-                     "Data range end (e.g. volts)");
+                     "View range end (mapped window, e.g. volts)");
+    axisMenu->Append(ID_AXIS_DATA_START, "Data s&tart...",
+                     "Absolute data extent start (full sample span)");
+    axisMenu->Append(ID_AXIS_DATA_END, "Data e&nd...",
+                     "Absolute data extent end (full sample span)");
     axisMenu->Append(ID_AXIS_SCALE, "Sca&le...",
                      "Display multiplier for range/ticks/cursors (e.g. 1000 for ms labels)");
     axisMenu->AppendSeparator();
@@ -949,6 +964,28 @@ void wxPlottingFrame::OnAxisMenu(wxCommandEvent& event)
             if ( EditDouble(wxT("Range end"), e) )
             {
                 axis->SetRange(s, e);
+                changed = true;
+            }
+            break;
+        }
+        case ID_AXIS_DATA_START:
+        {
+            double s = axis->GetDataStart();
+            double e = axis->GetDataEnd();
+            if ( EditDouble(wxT("Data start"), s) )
+            {
+                axis->SetData(s, e);
+                changed = true;
+            }
+            break;
+        }
+        case ID_AXIS_DATA_END:
+        {
+            double s = axis->GetDataStart();
+            double e = axis->GetDataEnd();
+            if ( EditDouble(wxT("Data end"), e) )
+            {
+                axis->SetData(s, e);
                 changed = true;
             }
             break;

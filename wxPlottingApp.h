@@ -87,6 +87,8 @@ private:
         ID_AXIS_POS_END,
         ID_AXIS_RANGE_START,
         ID_AXIS_RANGE_END,
+        ID_AXIS_DATA_START,
+        ID_AXIS_DATA_END,
         ID_AXIS_SCALE,
         ID_AXIS_TICK_VISIBLE,
         ID_AXIS_TICK_COLOR,
