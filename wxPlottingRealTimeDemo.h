@@ -82,7 +82,8 @@ private:
         ID_STOP,
         ID_PAUSE,
         ID_RESET,
-        ID_RATE
+        ID_RATE,
+        ID_MAX_POINTS
     };
 
     void BuildPlot();
@@ -93,6 +94,7 @@ private:
     void OnPause(wxCommandEvent& event);
     void OnReset(wxCommandEvent& event);
     void OnRate(wxSpinEvent& event);
+    void OnMaxPoints(wxSpinEvent& event);
     void OnClose(wxCloseEvent& event);
 
     /** Start worker if not running; clear pause. */
@@ -101,6 +103,8 @@ private:
     void StopWorker();
     /** Clear series, reset sample index, refresh axes/plot (UI thread). */
     void ResetData();
+    /** Apply UI max-points value to both series (0 = unlimited). */
+    void ApplyMaxPointsFromUi();
     /** Scroll Sample range to a trailing window and repaint (UI thread). */
     void RefreshPlotView(std::int64_t sampleIndex);
 
@@ -112,6 +116,7 @@ private:
     wxButton*    m_btnPause = nullptr;
     wxButton*    m_btnReset = nullptr;
     wxSpinCtrl*  m_rateSpin = nullptr;
+    wxSpinCtrl*  m_maxPointsSpin = nullptr;
 
     std::thread       m_worker;
     std::atomic<bool> m_run{false};

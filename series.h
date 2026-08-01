@@ -118,7 +118,8 @@ public:
           HorizontalAxis(other.HorizontalAxis),
           VerticalAxis(other.VerticalAxis),
           m_name(other.m_name),
-          m_seriesType(other.m_seriesType)
+          m_seriesType(other.m_seriesType),
+          m_maxPoints(other.m_maxPoints)
     {
         std::lock_guard<std::mutex> lock(other.m_mutex);
         m_data = other.m_data;
@@ -141,6 +142,7 @@ public:
         const wxString vert = other.VerticalAxis;
         const wxString name = other.m_name;
         const SeriesType type = other.m_seriesType;
+        const size_t maxPoints = other.m_maxPoints;
 
         Points dataCopy;
         {
@@ -156,10 +158,12 @@ public:
         VerticalAxis = vert;
         m_name = name;
         m_seriesType = type;
+        m_maxPoints = maxPoints;
 
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_data = std::move(dataCopy);
+            EnforceMaxPoints();
         }
         return *this;
     }
@@ -176,7 +180,8 @@ public:
           HorizontalAxis(std::move(other.HorizontalAxis)),
           VerticalAxis(std::move(other.VerticalAxis)),
           m_name(std::move(other.m_name)),
-          m_seriesType(other.m_seriesType)
+          m_seriesType(other.m_seriesType),
+          m_maxPoints(other.m_maxPoints)
     {
         std::lock_guard<std::mutex> lock(other.m_mutex);
         m_data = std::move(other.m_data);
@@ -199,6 +204,7 @@ public:
         VerticalAxis = std::move(other.VerticalAxis);
         m_name = std::move(other.m_name);
         m_seriesType = other.m_seriesType;
+        m_maxPoints = other.m_maxPoints;
 
         Points dataMove;
         {
@@ -208,6 +214,7 @@ public:
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_data = std::move(dataMove);
+            EnforceMaxPoints();
         }
         return *this;
     }
@@ -230,14 +237,41 @@ public:
     // --- Thread-safe point access ------------------------------------------
 
     /**
+     * @brief Maximum samples retained in the series buffer.
+     * @details @c 0 means unlimited. When greater than zero, any mutation that
+     *          would exceed the limit drops the oldest samples from the front
+     *          of the buffer (FIFO). Default is @c 0.
+     * @note Changing the limit via @ref SetMaxPoints trims immediately if needed.
+     * @see SetMaxPoints, GetMaxPoints
+     */
+    void SetMaxPoints(size_t maxPoints)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_maxPoints = maxPoints;
+        EnforceMaxPoints();
+    }
+
+    /**
+     * @brief Get the sample buffer limit (@c 0 = unlimited).
+     * @see SetMaxPoints
+     */
+    size_t GetMaxPoints() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_maxPoints;
+    }
+
+    /**
      * @brief Replace all samples (moves when possible).
      * @param points New sample vector; emptied after the call if moved from.
+     * @details Enforces @ref GetMaxPoints (drops oldest if over limit).
      * @note Thread-safe. Call @ref wxPlotting::UpdatePlot on the UI thread after.
      */
     void SetPoints(Points points)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_data = std::move(points);
+        EnforceMaxPoints();
     }
 
     /**
@@ -253,23 +287,27 @@ public:
     /**
      * @brief Append one sample.
      * @param pt Point in data coordinates (@c x = horizontal axis, @c y = vertical).
+     * @details Enforces @ref GetMaxPoints after the append.
      * @note Thread-safe.
      */
     void AppendPoint(const wxRealPoint& pt)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_data.push_back(pt);
+        EnforceMaxPoints();
     }
 
     /**
      * @brief Append multiple samples.
      * @param points Samples to append in order.
+     * @details Enforces @ref GetMaxPoints after the append.
      * @note Thread-safe.
      */
     void AppendPoints(const Points& points)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_data.insert(m_data.end(), points.begin(), points.end());
+        EnforceMaxPoints();
     }
 
     /**
@@ -306,6 +344,12 @@ public:
     auto WithPoints(Fn&& fn) -> decltype(fn(std::declval<Points&>()))
     {
         std::lock_guard<std::mutex> lock(m_mutex);
+        // Enforce after the functor returns (works for void and non-void).
+        struct EnforceOnExit
+        {
+            Series* self;
+            ~EnforceOnExit() { if ( self ) self->EnforceMaxPoints(); }
+        } enforce{this};
         return fn(m_data);
     }
 
@@ -368,8 +412,23 @@ public:
     wxString VerticalAxis;
 
 private:
+    /**
+     * @brief Drop oldest samples when @ref m_maxPoints is exceeded.
+     * @details Caller must hold @ref m_mutex. No-op when limit is @c 0.
+     */
+    void EnforceMaxPoints()
+    {
+        if ( m_maxPoints == 0 )
+            return;
+        if ( m_data.size() <= m_maxPoints )
+            return;
+        const size_t drop = m_data.size() - m_maxPoints;
+        m_data.erase(m_data.begin(), m_data.begin() + static_cast<std::ptrdiff_t>(drop));
+    }
+
     wxString m_name;           ///< Unique series identity.
     SeriesType m_seriesType;   ///< Semantic type.
+    size_t   m_maxPoints = 0;  ///< 0 = unlimited; else max retained samples.
 
     Points m_data;             ///< Sample buffer (guarded by @ref m_mutex).
     mutable std::mutex m_mutex;///< Protects @ref m_data only.

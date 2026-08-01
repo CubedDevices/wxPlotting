@@ -66,6 +66,7 @@ wxBEGIN_EVENT_TABLE(wxPlottingRealTimeFrame, wxFrame)
     EVT_BUTTON(ID_PAUSE, wxPlottingRealTimeFrame::OnPause)
     EVT_BUTTON(ID_RESET, wxPlottingRealTimeFrame::OnReset)
     EVT_SPINCTRL(ID_RATE, wxPlottingRealTimeFrame::OnRate)
+    EVT_SPINCTRL(ID_MAX_POINTS, wxPlottingRealTimeFrame::OnMaxPoints)
     EVT_CLOSE(wxPlottingRealTimeFrame::OnClose)
 wxEND_EVENT_TABLE()
 
@@ -93,6 +94,12 @@ wxPlottingRealTimeFrame::wxPlottingRealTimeFrame()
     ctrlRow->Add(new wxStaticText(root, wxID_ANY, wxT("Rate (ms):")),
                  0, wxALIGN_CENTER_VERTICAL | wxALL, 4);
     ctrlRow->Add(m_rateSpin, 0, wxALL, 4);
+    ctrlRow->AddSpacer(12);
+    ctrlRow->Add(new wxStaticText(root, wxID_ANY, wxT("Max points:")),
+                 0, wxALIGN_CENTER_VERTICAL | wxALL, 4);
+    ctrlRow->Add(m_maxPointsSpin, 0, wxALL, 4);
+    ctrlRow->Add(new wxStaticText(root, wxID_ANY, wxT("(0 = unlimited)")),
+                 0, wxALIGN_CENTER_VERTICAL | wxALL, 4);
 
     rootSizer->Add(ctrlRow, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, 4);
     rootSizer->Add(m_plot, 1, wxEXPAND | wxALL, 4);
@@ -124,6 +131,14 @@ void wxPlottingRealTimeFrame::BuildControls(wxWindow* parent)
                                 wxDefaultPosition, wxSize(80, -1),
                                 wxSP_ARROW_KEYS, 1, 5000, 50);
     m_rateMs.store(50);
+
+    // 0 = unlimited; default matches the visible sample window.
+    m_maxPointsSpin = new wxSpinCtrl(parent, ID_MAX_POINTS,
+                                     wxString::Format(wxT("%lld"),
+                                         static_cast<long long>(kSampleWindow)),
+                                     wxDefaultPosition, wxSize(90, -1),
+                                     wxSP_ARROW_KEYS, 0, 10000000,
+                                     static_cast<int>(kSampleWindow));
 }
 
 void wxPlottingRealTimeFrame::BuildPlot()
@@ -209,6 +224,7 @@ void wxPlottingRealTimeFrame::BuildPlot()
 
     m_plot->AddSeries(sine);
     m_plot->AddSeries(cosine);
+    ApplyMaxPointsFromUi();
     m_plot->UpdatePlot();
 }
 
@@ -292,6 +308,36 @@ void wxPlottingRealTimeFrame::OnRate(wxSpinEvent& event)
     {
         SetStatusText(wxString::Format(wxT("Running — %d ms between samples"), ms));
     }
+}
+
+void wxPlottingRealTimeFrame::OnMaxPoints(wxSpinEvent& WXUNUSED(event))
+{
+    ApplyMaxPointsFromUi();
+    // Repaint so a reduced limit is visible immediately.
+    m_plot->UpdatePlot();
+
+    const int maxPts = m_maxPointsSpin ? m_maxPointsSpin->GetValue() : 0;
+    if ( maxPts <= 0 )
+        SetStatusText(wxT("Max points: unlimited"));
+    else
+        SetStatusText(wxString::Format(wxT("Max points: %d (oldest dropped when full)"),
+                                       maxPts));
+}
+
+void wxPlottingRealTimeFrame::ApplyMaxPointsFromUi()
+{
+    if ( !m_plot || !m_maxPointsSpin )
+        return;
+
+    int v = m_maxPointsSpin->GetValue();
+    if ( v < 0 )
+        v = 0;
+    const size_t maxPts = static_cast<size_t>(v);
+
+    if ( Series* s = m_plot->GetSeries(wxT("SineWave")) )
+        s->SetMaxPoints(maxPts);
+    if ( Series* s = m_plot->GetSeries(wxT("CosineWave")) )
+        s->SetMaxPoints(maxPts);
 }
 
 void wxPlottingRealTimeFrame::OnClose(wxCloseEvent& event)
