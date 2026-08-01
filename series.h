@@ -33,6 +33,7 @@
 #include "wx/gdicmn.h"  // wxRealPoint
 #endif
 
+#include <algorithm>
 #include <mutex>
 #include <utility>
 #include <vector>
@@ -114,10 +115,12 @@ public:
         : Visible(other.Visible),
           Foreground(other.Foreground),
           RenderStyle(other.RenderStyle),
+          CustomRendererFactory(other.CustomRendererFactory),
           HorizontalAxis(other.HorizontalAxis),
           VerticalAxis(other.VerticalAxis),
           m_name(other.m_name),
-          m_seriesType(other.m_seriesType)
+          m_seriesType(other.m_seriesType),
+          m_maxPoints(other.m_maxPoints)
     {
         std::lock_guard<std::mutex> lock(other.m_mutex);
         m_data = other.m_data;
@@ -135,10 +138,12 @@ public:
         const bool visible = other.Visible;
         const wxColor foreground = other.Foreground;
         const SeriesRenderStyle renderStyle = other.RenderStyle;
+        const SeriesRendererFactory customFactory = other.CustomRendererFactory;
         const wxString horz = other.HorizontalAxis;
         const wxString vert = other.VerticalAxis;
         const wxString name = other.m_name;
         const SeriesType type = other.m_seriesType;
+        const size_t maxPoints = other.m_maxPoints;
 
         Points dataCopy;
         {
@@ -149,14 +154,17 @@ public:
         Visible = visible;
         Foreground = foreground;
         RenderStyle = renderStyle;
+        CustomRendererFactory = customFactory;
         HorizontalAxis = horz;
         VerticalAxis = vert;
         m_name = name;
         m_seriesType = type;
+        m_maxPoints = maxPoints;
 
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_data = std::move(dataCopy);
+            EnforceMaxPoints();
         }
         return *this;
     }
@@ -169,10 +177,12 @@ public:
         : Visible(other.Visible),
           Foreground(std::move(other.Foreground)),
           RenderStyle(other.RenderStyle),
+          CustomRendererFactory(std::move(other.CustomRendererFactory)),
           HorizontalAxis(std::move(other.HorizontalAxis)),
           VerticalAxis(std::move(other.VerticalAxis)),
           m_name(std::move(other.m_name)),
-          m_seriesType(other.m_seriesType)
+          m_seriesType(other.m_seriesType),
+          m_maxPoints(other.m_maxPoints)
     {
         std::lock_guard<std::mutex> lock(other.m_mutex);
         m_data = std::move(other.m_data);
@@ -190,10 +200,12 @@ public:
         Visible = other.Visible;
         Foreground = std::move(other.Foreground);
         RenderStyle = other.RenderStyle;
+        CustomRendererFactory = std::move(other.CustomRendererFactory);
         HorizontalAxis = std::move(other.HorizontalAxis);
         VerticalAxis = std::move(other.VerticalAxis);
         m_name = std::move(other.m_name);
         m_seriesType = other.m_seriesType;
+        m_maxPoints = other.m_maxPoints;
 
         Points dataMove;
         {
@@ -203,6 +215,7 @@ public:
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_data = std::move(dataMove);
+            EnforceMaxPoints();
         }
         return *this;
     }
@@ -225,14 +238,41 @@ public:
     // --- Thread-safe point access ------------------------------------------
 
     /**
+     * @brief Maximum samples retained in the series buffer.
+     * @details @c 0 means unlimited. When greater than zero, any mutation that
+     *          would exceed the limit drops the oldest samples from the front
+     *          of the buffer (FIFO). Default is @c 0.
+     * @note Changing the limit via @ref SetMaxPoints trims immediately if needed.
+     * @see SetMaxPoints, GetMaxPoints
+     */
+    void SetMaxPoints(size_t maxPoints)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_maxPoints = maxPoints;
+        EnforceMaxPoints();
+    }
+
+    /**
+     * @brief Get the sample buffer limit (@c 0 = unlimited).
+     * @see SetMaxPoints
+     */
+    size_t GetMaxPoints() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_maxPoints;
+    }
+
+    /**
      * @brief Replace all samples (moves when possible).
      * @param points New sample vector; emptied after the call if moved from.
+     * @details Enforces @ref GetMaxPoints (drops oldest if over limit).
      * @note Thread-safe. Call @ref wxPlotting::UpdatePlot on the UI thread after.
      */
     void SetPoints(Points points)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_data = std::move(points);
+        EnforceMaxPoints();
     }
 
     /**
@@ -248,23 +288,27 @@ public:
     /**
      * @brief Append one sample.
      * @param pt Point in data coordinates (@c x = horizontal axis, @c y = vertical).
+     * @details Enforces @ref GetMaxPoints after the append.
      * @note Thread-safe.
      */
     void AppendPoint(const wxRealPoint& pt)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_data.push_back(pt);
+        EnforceMaxPoints();
     }
 
     /**
      * @brief Append multiple samples.
      * @param points Samples to append in order.
+     * @details Enforces @ref GetMaxPoints after the append.
      * @note Thread-safe.
      */
     void AppendPoints(const Points& points)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_data.insert(m_data.end(), points.begin(), points.end());
+        EnforceMaxPoints();
     }
 
     /**
@@ -290,6 +334,62 @@ public:
     }
 
     /**
+     * @brief Keep only samples whose X lies in [@a xMin, @a xMax] (inclusive).
+     * @param xMin Lower bound on horizontal sample value.
+     * @param xMax Upper bound on horizontal sample value.
+     * @details If @a xMin &gt; @a xMax, the bounds are swapped. Samples with
+     *          @c x outside the inclusive interval are removed; order of
+     *          remaining samples is preserved.
+     * @note Thread-safe. Call @ref wxPlotting::UpdatePlot on the UI thread after.
+     * @see TrimVertical
+     */
+    void TrimHorizontal(double xMin, double xMax)
+    {
+        if ( xMin > xMax )
+        {
+            const double t = xMin;
+            xMin = xMax;
+            xMax = t;
+        }
+
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_data.erase(
+            std::remove_if(m_data.begin(), m_data.end(),
+                [xMin, xMax](const wxRealPoint& p) {
+                    return p.x < xMin || p.x > xMax;
+                }),
+            m_data.end());
+    }
+
+    /**
+     * @brief Keep only samples whose Y lies in [@a yMin, @a yMax] (inclusive).
+     * @param yMin Lower bound on vertical sample value.
+     * @param yMax Upper bound on vertical sample value.
+     * @details If @a yMin &gt; @a yMax, the bounds are swapped. Samples with
+     *          @c y outside the inclusive interval are removed; order of
+     *          remaining samples is preserved.
+     * @note Thread-safe. Call @ref wxPlotting::UpdatePlot on the UI thread after.
+     * @see TrimHorizontal
+     */
+    void TrimVertical(double yMin, double yMax)
+    {
+        if ( yMin > yMax )
+        {
+            const double t = yMin;
+            yMin = yMax;
+            yMax = t;
+        }
+
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_data.erase(
+            std::remove_if(m_data.begin(), m_data.end(),
+                [yMin, yMax](const wxRealPoint& p) {
+                    return p.y < yMin || p.y > yMax;
+                }),
+            m_data.end());
+    }
+
+    /**
      * @brief Invoke a functor while holding the data lock (mutable).
      * @tparam Fn Callable accepting @c Points&.
      * @param fn Work to perform; keep it short so render/update is not blocked.
@@ -301,6 +401,12 @@ public:
     auto WithPoints(Fn&& fn) -> decltype(fn(std::declval<Points&>()))
     {
         std::lock_guard<std::mutex> lock(m_mutex);
+        // Enforce after the functor returns (works for void and non-void).
+        struct EnforceOnExit
+        {
+            Series* self;
+            ~EnforceOnExit() { if ( self ) self->EnforceMaxPoints(); }
+        } enforce{this};
         return fn(m_data);
     }
 
@@ -332,11 +438,23 @@ public:
     /**
      * @brief How samples are stroked when the series is drawn.
      * @details A short-lived @ref SeriesRenderer is created for this style for
-     *          each draw pass (@ref CreateSeriesRenderer).
-     * @see SeriesRenderStyle, SeriesRenderer
+     *          each draw pass (@ref CreateSeriesRenderer). For
+     *          @ref SeriesRenderStyle::Custom, set @ref CustomRendererFactory.
+     * @see SeriesRenderStyle, SeriesRenderer, CustomRendererFactory
      * @note Not mutex-protected; set on the UI thread.
      */
     SeriesRenderStyle RenderStyle = SeriesRenderStyle::Line;
+
+    /**
+     * @brief Factory for @ref SeriesRenderStyle::Custom.
+     * @details Invoked on each draw pass to create a host-supplied
+     *          @ref SeriesRenderer (e.g. a subclass that draws markers or
+     *          specialized strokes). The plot owns the returned instance for
+     *          that pass only. Leave empty for built-in styles.
+     * @note Not mutex-protected; set on the UI thread.
+     * @see SeriesRendererFactory, SeriesRenderStyle::Custom
+     */
+    SeriesRendererFactory CustomRendererFactory;
 
     /**
      * @brief Name of the horizontal @ref Axis this series uses for X mapping.
@@ -351,8 +469,23 @@ public:
     wxString VerticalAxis;
 
 private:
+    /**
+     * @brief Drop oldest samples when @ref m_maxPoints is exceeded.
+     * @details Caller must hold @ref m_mutex. No-op when limit is @c 0.
+     */
+    void EnforceMaxPoints()
+    {
+        if ( m_maxPoints == 0 )
+            return;
+        if ( m_data.size() <= m_maxPoints )
+            return;
+        const size_t drop = m_data.size() - m_maxPoints;
+        m_data.erase(m_data.begin(), m_data.begin() + static_cast<std::ptrdiff_t>(drop));
+    }
+
     wxString m_name;           ///< Unique series identity.
     SeriesType m_seriesType;   ///< Semantic type.
+    size_t   m_maxPoints = 0;  ///< 0 = unlimited; else max retained samples.
 
     Points m_data;             ///< Sample buffer (guarded by @ref m_mutex).
     mutable std::mutex m_mutex;///< Protects @ref m_data only.

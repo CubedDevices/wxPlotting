@@ -7,6 +7,7 @@ so the **library** and **demo** must live in separate folders.
 |---------|------|--------|
 | **wxPlotting** (static library) | `build/Linux/wxPlotting/` | `dist/…/libwxPlotting.a` |
 | **wxPlottingDemo** (application) | `build/Linux/wxPlottingDemo/` | `dist/…/wxPlottingDemo` |
+| **wxPlottingRealTimeDemo** (application) | `build/Linux/wxPlottingRealTimeDemo/` | `dist/…/wxPlottingRealTimeDemo` |
 
 ## Command line
 
@@ -14,15 +15,23 @@ so the **library** and **demo** must live in separate folders.
 # Library only
 cd build/Linux/wxPlotting && make CONF=Debug
 
-# Demo (also builds the library via subproject)
+# Interactive property demo (also builds the library via subproject)
 cd build/Linux/wxPlottingDemo && make CONF=Debug
+
+# Real-time streaming demo
+cd build/Linux/wxPlottingRealTimeDemo && make CONF=Debug
+
+# Or from build/Linux:
+make demo
+make realtime
 ```
 
 ## NetBeans
 
 1. **File → Open Project** → select `build/Linux/wxPlotting`
 2. **File → Open Project** → select `build/Linux/wxPlottingDemo`
+3. **File → Open Project** → select `build/Linux/wxPlottingRealTimeDemo`
 
-Build the library first, or build the demo (it depends on the library).
+Build the library first, or build a demo (each depends on the library).
 
-Sources remain at the repository root; both projects include `../../../`.
+Sources remain at the repository root; projects include `../../../`.

@@ -46,14 +46,19 @@
  * @details
  * An axis has:
  * - A unique @ref GetName "name" used by series to bind channels
- * - A data @ref SetRange "range" and normalized @ref SetPosition "position"
- *   along the plot (0–1)
+ * - A view @ref SetRange "range" (what is mapped to the plot) and optional
+ *   absolute @ref SetData "data" extents (full sample span; metadata)
+ * - A normalized @ref SetPosition "position" along the plot (0–1)
  * - Optional ticks, tick labels, grids, and a title label
  *
  * Configure on the UI thread, then call @ref wxPlotting::UpdatePlot.
  *
  * **Coordinate model**
- * - Series samples and @ref SetRange share the same unit space (e.g. seconds).
+ * - Series samples, @ref SetRange, and @ref SetData share the same unit space
+ *   (e.g. seconds).
+ * - @ref SetRange is the currently mapped window (zoom/pan may change it).
+ * - @ref SetData holds absolute data limits (full acquisition span); not used
+ *   for drawing by default, but available for host/customer logic.
  * - @ref Scale multiplies values for display across the whole axis: tick labels,
  *   measurement cursors, and the interpreted meaning of the range
  *   (e.g. Scale = 1000 shows milliseconds while data/range stay in seconds).
@@ -106,6 +111,7 @@ public:
           TickColor(*wxLIGHT_GREY),
           TickSide(BelowOrLeft),
           TickRange(1.0),
+          TickRangeMinimum(0.0),
           TickFont(wxFontInfo(10).Family(wxFONTFAMILY_MODERN)),
           TickLabelVisible(false),
           TickLabelFormat("%g"),
@@ -150,6 +156,16 @@ public:
     wxColor  TickColor;    ///< Colour of tick marks and tick labels.
     LabelSide TickSide;    ///< Side of the axis line for ticks and tick labels.
     double   TickRange;    ///< Spacing between ticks in data units (must be > 0).
+
+    /**
+     * @brief Host-supplied minimum tick spacing in data units (metadata only).
+     * @details Not used by the plot when drawing ticks or grids. Applications
+     *          may store a floor here (e.g. for their own tick-policy logic)
+     *          while @ref TickRange remains the spacing used for rendering.
+     *          Default is @c 0.0.
+     * @see TickRange
+     */
+    double   TickRangeMinimum;
 
     /**
      * @brief Font for numeric tick labels.
@@ -243,13 +259,17 @@ public:
     }
 
     /**
-     * @brief Set the value range mapped onto the axis (sample / data units).
+     * @brief Set the view range mapped onto the axis (sample units).
      * @param start Value at the axis start (e.g. 0 seconds, -3.3 V).
      * @param end Value at the axis end (e.g. 256 seconds, +3.3 V).
-     * @details Same unit space as series samples. @ref Scale only affects
+     * @details This is the currently visible/mapped window used by
+     *          @ref ConvertValue, ticks, grids, and clipping. Zoom and pan
+     *          typically change this without changing @ref SetData.
+     *          Same unit space as series samples. @ref Scale only affects
      *          displayed tick/cursor numbers, not this range or plot placement.
      * @warning If @a start equals @a end, @ref ConvertValue returns the
      *          midpoint of the axis span (no divide-by-zero).
+     * @see SetData, GetRangeStart, GetRangeEnd
      */
     void SetRange(double start, double end)
     {
@@ -258,17 +278,52 @@ public:
     }
 
     /**
-     * @brief Get the range start (sample / data units).
+     * @brief Get the view range start (sample units).
+     * @see SetRange
      */
     double GetRangeStart() const {
         return m_rangeStart;
     }
 
     /**
-     * @brief Get the range end (sample / data units).
+     * @brief Get the view range end (sample units).
+     * @see SetRange
      */
     double GetRangeEnd() const {
         return m_rangeEnd;
+    }
+
+    /**
+     * @brief Set the absolute data extents for this axis (sample units).
+     * @param start Full-data lower bound (e.g. first sample time, min voltage).
+     * @param end Full-data upper bound (e.g. last sample time, max voltage).
+     * @details Independent of @ref SetRange. Hosts typically set this once from
+     *          the loaded/acquired series and leave it fixed while the view range
+     *          zooms. Not used by core drawing; provided for host and customer
+     *          logic (scroll bars, “zoom to full”, limits, etc.).
+     * @note Not mutex-protected; set on the UI thread.
+     * @see GetDataStart, GetDataEnd, SetRange
+     */
+    void SetData(double start, double end)
+    {
+        m_dataStart = start;
+        m_dataEnd = end;
+    }
+
+    /**
+     * @brief Get the absolute data start (sample units).
+     * @see SetData
+     */
+    double GetDataStart() const {
+        return m_dataStart;
+    }
+
+    /**
+     * @brief Get the absolute data end (sample units).
+     * @see SetData
+     */
+    double GetDataEnd() const {
+        return m_dataEnd;
     }
 
     /**
@@ -366,8 +421,11 @@ protected:
     double m_end = 1.0;        ///< Normalized axis span end.
     double m_location = 0;     ///< Normalized perpendicular location.
 
-    double m_rangeStart = 0;   ///< Data range start.
-    double m_rangeEnd = 100.0; ///< Data range end.
+    double m_rangeStart = 0;   ///< View range start (mapped / zoom window).
+    double m_rangeEnd = 100.0; ///< View range end (mapped / zoom window).
+
+    double m_dataStart = 0;    ///< Absolute data extent start (full sample span).
+    double m_dataEnd = 100.0;  ///< Absolute data extent end (full sample span).
 };
 
 #endif
