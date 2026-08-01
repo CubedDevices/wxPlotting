@@ -33,6 +33,7 @@
 #include "wx/gdicmn.h"  // wxRealPoint
 #endif
 
+#include <algorithm>
 #include <mutex>
 #include <utility>
 #include <vector>
@@ -330,6 +331,62 @@ public:
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_data.size();
+    }
+
+    /**
+     * @brief Keep only samples whose X lies in [@a xMin, @a xMax] (inclusive).
+     * @param xMin Lower bound on horizontal sample value.
+     * @param xMax Upper bound on horizontal sample value.
+     * @details If @a xMin &gt; @a xMax, the bounds are swapped. Samples with
+     *          @c x outside the inclusive interval are removed; order of
+     *          remaining samples is preserved.
+     * @note Thread-safe. Call @ref wxPlotting::UpdatePlot on the UI thread after.
+     * @see TrimVertical
+     */
+    void TrimHorizontal(double xMin, double xMax)
+    {
+        if ( xMin > xMax )
+        {
+            const double t = xMin;
+            xMin = xMax;
+            xMax = t;
+        }
+
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_data.erase(
+            std::remove_if(m_data.begin(), m_data.end(),
+                [xMin, xMax](const wxRealPoint& p) {
+                    return p.x < xMin || p.x > xMax;
+                }),
+            m_data.end());
+    }
+
+    /**
+     * @brief Keep only samples whose Y lies in [@a yMin, @a yMax] (inclusive).
+     * @param yMin Lower bound on vertical sample value.
+     * @param yMax Upper bound on vertical sample value.
+     * @details If @a yMin &gt; @a yMax, the bounds are swapped. Samples with
+     *          @c y outside the inclusive interval are removed; order of
+     *          remaining samples is preserved.
+     * @note Thread-safe. Call @ref wxPlotting::UpdatePlot on the UI thread after.
+     * @see TrimHorizontal
+     */
+    void TrimVertical(double yMin, double yMax)
+    {
+        if ( yMin > yMax )
+        {
+            const double t = yMin;
+            yMin = yMax;
+            yMax = t;
+        }
+
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_data.erase(
+            std::remove_if(m_data.begin(), m_data.end(),
+                [yMin, yMax](const wxRealPoint& p) {
+                    return p.y < yMin || p.y > yMax;
+                }),
+            m_data.end());
     }
 
     /**
