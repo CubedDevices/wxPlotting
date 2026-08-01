@@ -37,6 +37,7 @@
 #endif
 
 #include <atomic>
+#include <cstdint>
 #include <thread>
 
 class wxPlotting;
@@ -62,9 +63,11 @@ wxDECLARE_APP(wxPlottingRealTimeApp);
  * @class wxPlottingRealTimeFrame
  * @brief Hosts a plot updated by a background thread with Start/Stop/Pause/Reset.
  *
- * @details One horizontal Time axis and two vertical value axes (Sine / Cosine).
- *          A worker thread appends samples at a user-configurable interval (ms)
- *          and schedules @ref wxPlotting::UpdatePlot on the UI thread.
+ * @details One horizontal Sample-count axis and two vertical value axes
+ *          (Sine / Cosine). A worker thread appends samples at a user-configurable
+ *          interval (ms) and schedules @ref wxPlotting::UpdatePlot on the UI thread.
+ *          X is sample index (not wall-clock time) so rate only affects how fast
+ *          points arrive — better for performance stress testing.
  */
 class wxPlottingRealTimeFrame : public wxFrame
 {
@@ -96,10 +99,10 @@ private:
     void StartWorker();
     /** Signal stop and join the worker. */
     void StopWorker();
-    /** Clear series, reset time, refresh axes/plot (UI thread). */
+    /** Clear series, reset sample index, refresh axes/plot (UI thread). */
     void ResetData();
-    /** Scroll Time range to a trailing window and repaint (UI thread). */
-    void RefreshPlotView(double timeSec);
+    /** Scroll Sample range to a trailing window and repaint (UI thread). */
+    void RefreshPlotView(std::int64_t sampleIndex);
 
     void WorkerMain();
 
@@ -115,11 +118,11 @@ private:
     std::atomic<bool> m_pause{false};
     std::atomic<int>  m_rateMs{50};
 
-    /** Next sample X (seconds). Written by worker; reset only while stopped. */
-    double m_timeSec = 0.0;
+    /** Next sample index (X). Written by worker; reset only while stopped. */
+    std::int64_t m_sampleIndex = 0;
 
-    static constexpr double kTimeWindowSec = 10.0;
-    static constexpr double kWaveHz = 0.5; // 0.5 Hz sine/cosine
+    static constexpr std::int64_t kSampleWindow = 200;      ///< Visible X span in samples.
+    static constexpr std::int64_t kSamplesPerCycle = 50;    ///< Wave period in samples.
 
     wxDECLARE_EVENT_TABLE();
 };

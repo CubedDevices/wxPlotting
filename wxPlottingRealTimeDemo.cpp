@@ -128,24 +128,26 @@ void wxPlottingRealTimeFrame::BuildControls(wxWindow* parent)
 
 void wxPlottingRealTimeFrame::BuildPlot()
 {
-    Axis timeAxis("Time", Axis::Horizontal);
-    timeAxis.Visible = true;
-    timeAxis.Foreground = wxColour(0, 200, 0);
-    timeAxis.LabelColor = timeAxis.Foreground;
-    timeAxis.LabelVisible = true;
-    timeAxis.Label = wxT("Time (s)");
-    timeAxis.SetLocation(0.0);
-    timeAxis.SetPosition(0.0, 1.0);
-    timeAxis.SetRange(0.0, kTimeWindowSec);
-    timeAxis.SetData(0.0, kTimeWindowSec);
-    timeAxis.TickVisible = true;
-    timeAxis.TickLabelVisible = true;
-    timeAxis.TickRange = 1.0;
-    timeAxis.TickLabelFormat = wxT("%.1f");
-    timeAxis.TickColor = timeAxis.Foreground;
-    timeAxis.GridVisible = true;
-    timeAxis.GridColor = wxColour(60, 60, 60);
-    timeAxis.GridStyle = wxPENSTYLE_DOT;
+    // Horizontal axis is sample index (not wall-clock time). Rate only
+    // controls how often the worker appends; X is always n, n+1, n+2, …
+    Axis sampleAxis("Sample", Axis::Horizontal);
+    sampleAxis.Visible = true;
+    sampleAxis.Foreground = wxColour(0, 200, 0);
+    sampleAxis.LabelColor = sampleAxis.Foreground;
+    sampleAxis.LabelVisible = true;
+    sampleAxis.Label = wxT("Sample");
+    sampleAxis.SetLocation(0.0);
+    sampleAxis.SetPosition(0.0, 1.0);
+    sampleAxis.SetRange(0.0, static_cast<double>(kSampleWindow));
+    sampleAxis.SetData(0.0, static_cast<double>(kSampleWindow));
+    sampleAxis.TickVisible = true;
+    sampleAxis.TickLabelVisible = true;
+    sampleAxis.TickRange = 20.0;
+    sampleAxis.TickLabelFormat = wxT("%.0f");
+    sampleAxis.TickColor = sampleAxis.Foreground;
+    sampleAxis.GridVisible = true;
+    sampleAxis.GridColor = wxColour(60, 60, 60);
+    sampleAxis.GridStyle = wxPENSTYLE_DOT;
 
     Axis sinAxis("Sine", Axis::Vertical);
     sinAxis.Visible = true;
@@ -187,21 +189,21 @@ void wxPlottingRealTimeFrame::BuildPlot()
     cosAxis.GridColor = wxColour(40, 40, 80);
     cosAxis.GridStyle = wxPENSTYLE_DOT;
 
-    m_plot->AddAxis(timeAxis);
+    m_plot->AddAxis(sampleAxis);
     m_plot->AddAxis(sinAxis);
     m_plot->AddAxis(cosAxis);
 
     Series sine("SineWave", Series::Doubles);
     sine.Visible = true;
     sine.Foreground = wxColour(255, 80, 80);
-    sine.HorizontalAxis = wxT("Time");
+    sine.HorizontalAxis = wxT("Sample");
     sine.VerticalAxis = wxT("Sine");
     sine.RenderStyle = SeriesRenderStyle::Line;
 
     Series cosine("CosineWave", Series::Doubles);
     cosine.Visible = true;
     cosine.Foreground = wxColour(80, 160, 255);
-    cosine.HorizontalAxis = wxT("Time");
+    cosine.HorizontalAxis = wxT("Sample");
     cosine.VerticalAxis = wxT("Cosine");
     cosine.RenderStyle = SeriesRenderStyle::Line;
 
@@ -221,7 +223,7 @@ void wxPlottingRealTimeFrame::OnStart(wxCommandEvent& WXUNUSED(event))
     }
 
     StartWorker();
-    SetStatusText(wxString::Format(wxT("Running — %d ms sample period"),
+    SetStatusText(wxString::Format(wxT("Running — %d ms between samples"),
                                    m_rateMs.load()));
     m_btnStart->Enable(false);
     m_btnStop->Enable(true);
@@ -254,7 +256,7 @@ void wxPlottingRealTimeFrame::OnPause(wxCommandEvent& WXUNUSED(event))
     }
     else
     {
-        SetStatusText(wxString::Format(wxT("Running — %d ms sample period"),
+        SetStatusText(wxString::Format(wxT("Running — %d ms between samples"),
                                        m_rateMs.load()));
         m_btnPause->SetLabel(wxT("&Pause"));
         m_btnStart->Enable(false);
@@ -288,7 +290,7 @@ void wxPlottingRealTimeFrame::OnRate(wxSpinEvent& event)
     m_rateMs.store(ms);
     if ( m_run.load() && !m_pause.load() )
     {
-        SetStatusText(wxString::Format(wxT("Running — %d ms sample period"), ms));
+        SetStatusText(wxString::Format(wxT("Running — %d ms between samples"), ms));
     }
 }
 
@@ -321,40 +323,42 @@ void wxPlottingRealTimeFrame::StopWorker()
 
 void wxPlottingRealTimeFrame::ResetData()
 {
-    m_timeSec = 0.0;
+    m_sampleIndex = 0;
 
     if ( Series* s = m_plot->GetSeries(wxT("SineWave")) )
         s->ClearPoints();
     if ( Series* s = m_plot->GetSeries(wxT("CosineWave")) )
         s->ClearPoints();
 
-    if ( Axis* t = m_plot->GetAxis(wxT("Time")) )
+    if ( Axis* sample = m_plot->GetAxis(wxT("Sample")) )
     {
-        t->SetRange(0.0, kTimeWindowSec);
-        t->SetData(0.0, kTimeWindowSec);
+        sample->SetRange(0.0, static_cast<double>(kSampleWindow));
+        sample->SetData(0.0, static_cast<double>(kSampleWindow));
     }
 
     m_plot->UpdatePlot(true);
 }
 
-void wxPlottingRealTimeFrame::RefreshPlotView(double timeSec)
+void wxPlottingRealTimeFrame::RefreshPlotView(std::int64_t sampleIndex)
 {
     if ( !m_plot )
         return;
 
-    Axis* timeAxis = m_plot->GetAxis(wxT("Time"));
-    if ( timeAxis )
+    Axis* sampleAxis = m_plot->GetAxis(wxT("Sample"));
+    if ( sampleAxis )
     {
-        // Trailing window so real-time traces scroll rather than compress forever.
-        if ( timeSec <= kTimeWindowSec )
+        // Trailing window in sample counts (not wall time).
+        const double n = static_cast<double>(sampleIndex);
+        const double win = static_cast<double>(kSampleWindow);
+        if ( sampleIndex <= kSampleWindow )
         {
-            timeAxis->SetRange(0.0, kTimeWindowSec);
-            timeAxis->SetData(0.0, timeSec > 0.0 ? timeSec : kTimeWindowSec);
+            sampleAxis->SetRange(0.0, win);
+            sampleAxis->SetData(0.0, n > 0.0 ? n : win);
         }
         else
         {
-            timeAxis->SetRange(timeSec - kTimeWindowSec, timeSec);
-            timeAxis->SetData(0.0, timeSec);
+            sampleAxis->SetRange(n - win, n);
+            sampleAxis->SetData(0.0, n);
         }
     }
 
@@ -368,22 +372,25 @@ void wxPlottingRealTimeFrame::WorkerMain()
         const int sleepMs = m_rateMs.load();
         if ( !m_pause.load() )
         {
-            const double t = m_timeSec;
-            const double w = 2.0 * M_PI * kWaveHz * t;
-            const double ySin = std::sin(w);
-            const double yCos = std::cos(w);
+            const std::int64_t n = m_sampleIndex;
+            // Phase from sample index only — independent of wall-clock rate.
+            const double phase =
+                2.0 * M_PI * (static_cast<double>(n) / static_cast<double>(kSamplesPerCycle));
+            const double ySin = std::sin(phase);
+            const double yCos = std::cos(phase);
+            const double x = static_cast<double>(n);
 
             // Thread-safe point APIs; UI thread only paints.
             if ( Series* s = m_plot->GetSeries(wxT("SineWave")) )
-                s->AppendPoint(wxRealPoint(t, ySin));
+                s->AppendPoint(wxRealPoint(x, ySin));
             if ( Series* s = m_plot->GetSeries(wxT("CosineWave")) )
-                s->AppendPoint(wxRealPoint(t, yCos));
+                s->AppendPoint(wxRealPoint(x, yCos));
 
-            const double nextT = t + (static_cast<double>(sleepMs) / 1000.0);
-            m_timeSec = nextT;
+            const std::int64_t next = n + 1;
+            m_sampleIndex = next;
 
             // Schedule repaint on the UI thread (never call UpdatePlot here).
-            CallAfter([this, nextT]() { RefreshPlotView(nextT); });
+            CallAfter([this, next]() { RefreshPlotView(next); });
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(sleepMs > 0 ? sleepMs : 1));
