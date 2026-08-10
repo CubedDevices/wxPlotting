@@ -259,6 +259,29 @@ public:
      */
     void ArrangeHorizontalAxes(double spacing = 0.05);
 
+    /**
+     * @brief Render the plot into @a out at an exact pixel size (no DPI scaling).
+     * @param out Receives a new 32-bit bitmap of @a size; previous contents discarded.
+     * @param size Logical and physical pixel size (width × height). Must exceed margins.
+     * @param background Clear colour before drawing. Use @c wxTransparentColour or
+     *        a colour with alpha 0 for a fully transparent clear; non-zero alpha is
+     *        written into the bitmap (host composites as needed). RGB is used when
+     *        alpha is opaque.
+     * @return @c true if @a out is valid and drawing ran; @c false on bad size or
+     *         bitmap creation failure.
+     * @details Does not change the on-screen control buffer or client size.
+     *          Measurement cursors are not drawn (window overlay only).
+     *          Geometry uses the same margins and axis layout as the interactive
+     *          control. The host should pass the final pixel dimensions (e.g.
+     *          video frame size); this API does not scale or supersample.
+     * @warning Call on the UI thread.
+     * @note Drawn content (axes, series, labels) is typically fully opaque;
+     *       transparency applies to cleared background areas.
+     */
+    bool RenderToBitmap(wxBitmap& out,
+                        const wxSize& size,
+                        const wxColour& background = wxTransparentColour);
+
     // --- Margins -----------------------------------------------------------
 
     /**
@@ -452,10 +475,11 @@ public:
 
 protected:
     /**
-     * @brief Draw the full plot into @a dc (background, axes, series).
+     * @brief Draw the full plot into @a dc (axes, series; no buffer clear).
      * @param dc Memory DC with the plot bitmap selected.
      * @param size Logical size of the drawing surface (including margins).
-     * @details Override to customize drawing; call the base if needed.
+     * @details Does not clear the DC; caller clears (see @ref Render,
+     *          @ref RenderToBitmap). Override to customize drawing.
      */
     virtual void DrawPlot(wxMemoryDC& dc, const wxSize& size);
 
