@@ -28,6 +28,7 @@
 
 #include "wx/dcclient.h"
 #include "wx/dcmemory.h"
+#include "wx/image.h"
 #include "wx/settings.h"
 #include "wx/timer.h"
 
@@ -928,15 +929,84 @@ void wxPlotting::Render()
     memDC.SelectObject(wxNullBitmap);
 }
 
+bool wxPlotting::RenderToBitmap(wxBitmap& out,
+                                const wxSize& size,
+                                const wxColour& background)
+{
+    if ( size.x < 1 || size.y < 1 )
+        return false;
+    if ( size.x <= m_marginLeft + m_marginRight ||
+         size.y <= m_marginTop + m_marginBottom )
+        return false;
+
+    // Exact pixel bitmap — no CreateScaled / content-scale factor. Hosts pass
+    // the final dimensions (e.g. video frame size) so pixels stay sharp.
+    wxImage img(size.x, size.y, false);
+    if ( !img.IsOk() )
+        return false;
+    img.InitAlpha();
+
+    unsigned char r = 0;
+    unsigned char g = 0;
+    unsigned char b = 0;
+    unsigned char a = 0;
+    // wxTransparentColour / invalid / alpha 0 → fully transparent clear.
+    if ( background.IsOk() && background != wxTransparentColour &&
+         background.Alpha() != 0 )
+    {
+        r = background.Red();
+        g = background.Green();
+        b = background.Blue();
+        a = background.Alpha();
+    }
+
+    unsigned char* const rgb = img.GetData();
+    unsigned char* const alpha = img.GetAlpha();
+    const size_t n = static_cast<size_t>(size.x) * static_cast<size_t>(size.y);
+    for ( size_t i = 0; i < n; ++i )
+    {
+        rgb[i * 3 + 0] = r;
+        rgb[i * 3 + 1] = g;
+        rgb[i * 3 + 2] = b;
+        alpha[i] = a;
+    }
+
+    out = wxBitmap(img);
+    if ( !out.IsOk() )
+        return false;
+
+    // Temporarily drive geometry for DrawPlot / DrawSeries (same as RecreateBuffer).
+    const wxSize savedDrawing = m_drawingSize;
+    const wxSize savedPlotSize = m_plotSize;
+    const wxRect savedPlot = m_plot;
+
+    m_drawingSize = size;
+    m_plotSize = wxSize(size.x - m_marginLeft - m_marginRight,
+                        size.y - m_marginTop - m_marginBottom);
+    m_plot = wxRect(wxPoint(m_marginLeft, m_marginTop), m_plotSize);
+
+    {
+        wxMemoryDC memDC;
+        memDC.SelectObject(out);
+        // Background already filled with alpha; DrawPlot does not clear.
+        DrawPlot(memDC, size);
+        memDC.SelectObject(wxNullBitmap);
+    }
+
+    m_drawingSize = savedDrawing;
+    m_plotSize = savedPlotSize;
+    m_plot = savedPlot;
+
+    return out.IsOk();
+}
+
 // ----------------------------------------------------------------------------
 // drawing (override / extend later)
 // ----------------------------------------------------------------------------
 
 void wxPlotting::DrawPlot(wxMemoryDC& dc, const wxSize& size)
 {
-    // Placeholder: clear to background and mark the control as a template.
-    dc.SetBackground(wxBrush(GetBackgroundColour()));
-    dc.Clear();
+    // Caller is responsible for clearing (Render / RenderToBitmap).
 
     wxPen penBorder(wxColor("White"));
     dc.SetPen(penBorder);
