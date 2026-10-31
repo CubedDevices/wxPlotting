@@ -30,7 +30,15 @@
 #include "wx/dcmemory.h"
 #include "wx/image.h"
 #include "wx/settings.h"
+#include "wx/stopwatch.h"
 #include "wx/timer.h"
+
+// Separate from the update-throttle timer so the shared wxEVT_TIMER handler
+// can tell a resize-settle flush from a plot update.
+enum
+{
+    ID_PLOT_RESIZE_SETTLE = wxID_HIGHEST + 1
+};
 
 #include <cmath>
 #include <limits>
@@ -107,6 +115,7 @@ bool wxPlotting::Create(wxWindow* parent,
     EnableScrolling(true, true);
 
     m_updateThrottleTimer.SetOwner(this);
+    m_resizeSettleTimer.SetOwner(this, ID_PLOT_RESIZE_SETTLE);
     Bind(wxEVT_TIMER, &wxPlotting::OnUpdateThrottleTimer, this);
 
     SyncDrawingSizeToClient();
@@ -121,6 +130,8 @@ wxPlotting::~wxPlotting()
 {
     if ( m_updateThrottleTimer.IsRunning() )
         m_updateThrottleTimer.Stop();
+    if ( m_resizeSettleTimer.IsRunning() )
+        m_resizeSettleTimer.Stop();
 }
 
 // ----------------------------------------------------------------------------
@@ -423,10 +434,25 @@ void wxPlotting::FlushPendingUpdate(bool forceImmediate)
     m_lastFlushMs = wxGetLocalTimeMillis();
 }
 
-void wxPlotting::OnUpdateThrottleTimer(wxTimerEvent& WXUNUSED(event))
+void wxPlotting::OnUpdateThrottleTimer(wxTimerEvent& event)
 {
+    if ( event.GetId() == ID_PLOT_RESIZE_SETTLE )
+    {
+        OnResizeSettleTimer();
+        return;
+    }
+
     if ( m_fullUpdatePending || m_overlayRefreshPending )
         FlushPendingUpdate(false);
+}
+
+void wxPlotting::OnResizeSettleTimer()
+{
+    if ( !m_resizeRenderPending )
+        return;
+
+    Render();
+    Refresh(false);
 }
 
 // ----------------------------------------------------------------------------
@@ -884,7 +910,7 @@ bool wxPlotting::SyncDrawingSizeToClient()
     return true;
 }
 
-void wxPlotting::RecreateBuffer()
+void wxPlotting::UpdatePlotRect()
 {
     const wxSize size = m_drawingSize;
     if ( size.x <= m_marginLeft + m_marginRight ||
@@ -895,6 +921,16 @@ void wxPlotting::RecreateBuffer()
     m_plotSize = wxSize(size.x - m_marginLeft - m_marginRight,
                         size.y - m_marginTop - m_marginBottom);
     m_plot = wxRect(wxPoint(m_marginLeft, m_marginTop), m_plotSize);
+}
+
+void wxPlotting::RecreateBuffer()
+{
+    const wxSize size = m_drawingSize;
+    if ( size.x <= m_marginLeft + m_marginRight ||
+         size.y <= m_marginTop + m_marginBottom )
+        return;
+
+    UpdatePlotRect();
 
     // Use the window content scale so MemoryDC text matches on-screen DPI.
     // Without this, fonts are measured/drawn at 96 DPI and look undersized
@@ -914,12 +950,19 @@ void wxPlotting::RecreateBuffer()
 
 void wxPlotting::Render()
 {
+    wxStopWatch sw;
+
     RecreateBuffer();
     if ( !m_buffer.IsOk())
+    {
+        m_resizeRenderPending = false;
         return;
+    }
 
     wxMemoryDC memDC;
     memDC.SelectObject(m_buffer);
+    // DrawLines walks every vertex for the bounding box unless this is off.
+    memDC.DisableAutomaticBoundingBoxUpdates();
 
     memDC.SetBackground(wxBrush(GetBackgroundColour()));
     memDC.Clear();
@@ -927,6 +970,12 @@ void wxPlotting::Render()
     // Logical size matches the drawing coordinate system (not physical pixels).
     DrawPlot(memDC, m_buffer.GetLogicalSize());
     memDC.SelectObject(wxNullBitmap);
+
+    m_lastRenderMs = sw.Time();
+    m_renderedSize = m_drawingSize;
+    m_resizeRenderPending = false;
+    if ( m_resizeSettleTimer.IsRunning() )
+        m_resizeSettleTimer.Stop();
 }
 
 bool wxPlotting::RenderToBitmap(wxBitmap& out,
@@ -988,6 +1037,7 @@ bool wxPlotting::RenderToBitmap(wxBitmap& out,
     {
         wxMemoryDC memDC;
         memDC.SelectObject(out);
+        memDC.DisableAutomaticBoundingBoxUpdates();
         // Background already filled with alpha; DrawPlot does not clear.
         DrawPlot(memDC, size);
         memDC.SelectObject(wxNullBitmap);
@@ -1319,28 +1369,42 @@ void wxPlotting::DrawSeries(wxMemoryDC& dc, const wxSize& size)
             renderer->SetBaselinePlotY(lo);
         }
 
-        // Snapshot under the series mutex so a worker can append/replace
-        // points while we draw without racing or holding the lock during GDI.
-        const auto points = iter->GetPoints();
-
-        for (auto ptIter = points.begin();
-            ptIter != points.end();
-            ++ptIter
-            )
+        // Line, stair, and fill record screen geometry in AddPoint and finish
+        // the stroke in End(), after the lock is released. A range gap strokes
+        // the run so far during the walk (one polyline). Custom and point
+        // markers can draw inside AddPoint, so those still copy under the lock
+        // and draw after it is released.
+        auto feed = [&](const Series::Points& points)
         {
-            // Clip in scaled (range) units so Axis::Scale is respected.
-            if ( !horzAxis->IsValueInRange(ptIter->x) ||
-                 !vertAxis->IsValueInRange(ptIter->y) )
+            for ( auto ptIter = points.begin();
+                  ptIter != points.end();
+                  ++ptIter )
             {
-                renderer->Break();
-                continue;
+                // Clip in scaled (range) units so Axis::Scale is respected.
+                if ( !horzAxis->IsValueInRange(ptIter->x) ||
+                     !vertAxis->IsValueInRange(ptIter->y) )
+                {
+                    renderer->Break();
+                    continue;
+                }
+
+                const wxRealPoint converted(
+                    horzAxis->ConvertValue(ptIter->x),
+                    vertAxis->ConvertValue(ptIter->y));
+
+                renderer->AddPoint(converted);
             }
+        };
 
-            const wxRealPoint converted(
-                horzAxis->ConvertValue(ptIter->x),
-                vertAxis->ConvertValue(ptIter->y));
-
-            renderer->AddPoint(converted);
+        if ( iter->RenderStyle == SeriesRenderStyle::Custom ||
+             iter->RenderStyle == SeriesRenderStyle::Points )
+        {
+            const Series::Points points = iter->GetPoints();
+            feed(points);
+        }
+        else
+        {
+            iter->WithPoints(feed);
         }
 
         renderer->End();
@@ -1352,6 +1416,37 @@ void wxPlotting::DrawSeries(wxMemoryDC& dc, const wxSize& size)
 // ----------------------------------------------------------------------------
 // event handlers
 // ----------------------------------------------------------------------------
+
+void wxPlotting::PaintBuffer(wxDC& dc)
+{
+    const wxSize bufSize = m_buffer.GetLogicalSize();
+    const bool stretch = m_resizeRenderPending &&
+                         m_renderedSize.x > 0 &&
+                         m_renderedSize.y > 0 &&
+                         m_renderedSize != m_drawingSize &&
+                         bufSize.x > 0 &&
+                         bufSize.y > 0 &&
+                         m_drawingSize.x > 0 &&
+                         m_drawingSize.y > 0;
+
+    if ( !stretch )
+    {
+        dc.DrawBitmap(m_buffer, 0, 0, false);
+        return;
+    }
+
+    // Map the whole previous frame onto the new canvas. Source extent is the
+    // bitmap's own coordinate space (physical pixels on MSW when the bitmap
+    // is CreateScaled); dest extent is the new drawing size. The ratio is
+    // the window size change, so the content-scale factor cancels out.
+    wxMemoryDC srcDC;
+    srcDC.SelectObject(m_buffer);
+    const bool ok = dc.StretchBlit(0, 0, m_drawingSize.x, m_drawingSize.y,
+                                   &srcDC, 0, 0, bufSize.x, bufSize.y);
+    srcDC.SelectObject(wxNullBitmap);
+    if ( !ok )
+        dc.DrawBitmap(m_buffer, 0, 0, false);
+}
 
 void wxPlotting::OnPaint(wxPaintEvent& WXUNUSED(event))
 {
@@ -1366,7 +1461,7 @@ void wxPlotting::OnPaint(wxPaintEvent& WXUNUSED(event))
     }
 
     if ( m_buffer.IsOk() )
-        dc.DrawBitmap(m_buffer, 0, 0, false);
+        PaintBuffer(dc);
 
     // Cursors are an overlay — not baked into the buffer (cheap mouse tracking).
     DrawCursors(dc);
@@ -1377,8 +1472,25 @@ void wxPlotting::OnSize(wxSizeEvent& event)
     // Grow/shrink the canvas with the client (down to the minimum only).
     if ( SyncDrawingSizeToClient() )
     {
-        RecreateBuffer();
-        Render();
+        // Windows runs size-drag inside a modal loop and does not move the
+        // frame until this handler and the matching paint return. Rebuilding
+        // every series on each step is what makes a large capture feel stuck.
+        // A cheap plot still redraws live (same as a small capture, and the
+        // usual Linux case). An expensive one keeps the last frame, stretched,
+        // until the drag pauses.
+        const bool drawNow =
+            m_lastRenderMs <= kLiveResizeBudgetMs || !m_buffer.IsOk();
+
+        if ( drawNow )
+        {
+            Render();
+        }
+        else
+        {
+            UpdatePlotRect();
+            m_resizeRenderPending = true;
+            m_resizeSettleTimer.StartOnce(kResizeSettleMs);
+        }
     }
 
     Refresh(false);

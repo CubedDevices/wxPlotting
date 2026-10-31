@@ -28,6 +28,36 @@
 #include "wx/pen.h"
 #include "wx/brush.h"
 
+namespace
+{
+
+// One Polyline per chunk. A per-sample DrawLine is a GDI call each; on Windows
+// that dominates a large capture, and the H/V fast path is unavailable once
+// the memory DC is scaled (high DPI). DrawLines is a single Polyline.
+void StrokePolyline(wxDC& dc, const std::vector<wxPoint>& path)
+{
+    const int n = static_cast<int>(path.size());
+    if ( n < 2 )
+        return;
+
+    const int chunk = 32768;
+    int start = 0;
+    while ( start < n - 1 )
+    {
+        int count = n - start;
+        if ( count > chunk )
+            count = chunk;
+        dc.DrawLines(count, &path[static_cast<size_t>(start)]);
+        start += count - 1;
+    }
+}
+
+int AbsDelta(int a, int b)
+{
+    return a > b ? a - b : b - a;
+}
+
+} // namespace
 
 // ----------------------------------------------------------------------------
 // SeriesLineRenderer
@@ -37,9 +67,38 @@ void SeriesLineRenderer::Begin(wxDC& dc, const Series& series, const wxRect& plo
 {
     m_dc = &dc;
     m_plot = plot;
-    m_hasLast = false;
+    m_open = false;
+    m_path.clear();
     wxPen pen(series.Foreground);
     dc.SetPen(pen);
+}
+
+void SeriesLineRenderer::Append(int x, int y)
+{
+    if ( m_path.empty() || m_path.back().x != x || m_path.back().y != y )
+        m_path.push_back(wxPoint(x, y));
+}
+
+void SeriesLineRenderer::EmitColumn()
+{
+    if ( !m_open )
+        return;
+
+    // Visit the column's vertical extent, then leave from the last sample so
+    // the segment into the next column starts where the data left off.
+    int yFirst = m_colMinY;
+    int ySecond = m_colMaxY;
+    if ( !m_path.empty() &&
+         AbsDelta(m_path.back().y, m_colMaxY) < AbsDelta(m_path.back().y, m_colMinY) )
+    {
+        yFirst = m_colMaxY;
+        ySecond = m_colMinY;
+    }
+
+    Append(m_colX, yFirst);
+    Append(m_colX, ySecond);
+    Append(m_colX, m_colLastY);
+    m_open = false;
 }
 
 void SeriesLineRenderer::AddPoint(const wxRealPoint& plotPt)
@@ -49,21 +108,48 @@ void SeriesLineRenderer::AddPoint(const wxRealPoint& plotPt)
 
     const wxPoint screen = ToScreen(plotPt);
 
-    if ( m_hasLast )
-        m_dc->DrawLine(m_lastScreen, screen);
+    if ( !m_open )
+    {
+        Append(screen.x, screen.y);
+        m_colX = screen.x;
+        m_colMinY = m_colMaxY = m_colLastY = screen.y;
+        m_open = true;
+        return;
+    }
 
-    m_lastScreen = screen;
-    m_hasLast = true;
+    if ( screen.x == m_colX )
+    {
+        if ( screen.y < m_colMinY )
+            m_colMinY = screen.y;
+        if ( screen.y > m_colMaxY )
+            m_colMaxY = screen.y;
+        m_colLastY = screen.y;
+        return;
+    }
+
+    EmitColumn();
+    m_colX = screen.x;
+    m_colMinY = m_colMaxY = m_colLastY = screen.y;
+    m_open = true;
+}
+
+void SeriesLineRenderer::Stroke()
+{
+    if ( m_dc )
+        StrokePolyline(*m_dc, m_path);
+    m_path.clear();
 }
 
 void SeriesLineRenderer::Break()
 {
-    m_hasLast = false;
+    EmitColumn();
+    Stroke();
 }
 
 void SeriesLineRenderer::End()
 {
-    m_hasLast = false;
+    EmitColumn();
+    Stroke();
     m_dc = nullptr;
 }
 
@@ -75,9 +161,29 @@ void SeriesStairStepRenderer::Begin(wxDC& dc, const Series& series, const wxRect
 {
     m_dc = &dc;
     m_plot = plot;
-    m_hasLast = false;
+    m_open = false;
+    m_path.clear();
     wxPen pen(series.Foreground);
     dc.SetPen(pen);
+}
+
+void SeriesStairStepRenderer::Append(int x, int y)
+{
+    if ( m_path.empty() || m_path.back().x != x || m_path.back().y != y )
+        m_path.push_back(wxPoint(x, y));
+}
+
+void SeriesStairStepRenderer::AppendVerticalExtent()
+{
+    if ( !m_open )
+        return;
+
+    if ( m_colMinY != m_colMaxY )
+    {
+        Append(m_colX, m_colMinY);
+        Append(m_colX, m_colMaxY);
+    }
+    Append(m_colX, m_colEndY);
 }
 
 void SeriesStairStepRenderer::AddPoint(const wxRealPoint& plotPt)
@@ -87,26 +193,56 @@ void SeriesStairStepRenderer::AddPoint(const wxRealPoint& plotPt)
 
     const wxPoint screen = ToScreen(plotPt);
 
-    if ( m_hasLast )
+    if ( !m_open )
     {
-        // Hold previous Y until new X, then step to new Y (sample-and-hold).
-        const wxPoint corner(screen.x, m_lastScreen.y);
-        m_dc->DrawLine(m_lastScreen, corner);
-        m_dc->DrawLine(corner, screen);
+        Append(screen.x, screen.y);
+        m_colX = screen.x;
+        m_colMinY = m_colMaxY = m_colEndY = screen.y;
+        m_open = true;
+        return;
     }
 
-    m_lastScreen = screen;
-    m_hasLast = true;
+    if ( screen.x == m_colX )
+    {
+        if ( screen.y < m_colMinY )
+            m_colMinY = screen.y;
+        if ( screen.y > m_colMaxY )
+            m_colMaxY = screen.y;
+        m_colEndY = screen.y;
+        return;
+    }
+
+    // Cover this column, then hold the last level across to the new X.
+    // The step to the new Y is part of the new column (flushed later).
+    AppendVerticalExtent();
+    const int holdY = m_colEndY;
+    Append(screen.x, holdY);
+
+    m_colX = screen.x;
+    m_colEndY = screen.y;
+    m_colMinY = wxMin(holdY, screen.y);
+    m_colMaxY = wxMax(holdY, screen.y);
+}
+
+void SeriesStairStepRenderer::Stroke()
+{
+    if ( m_dc )
+        StrokePolyline(*m_dc, m_path);
+    m_path.clear();
 }
 
 void SeriesStairStepRenderer::Break()
 {
-    m_hasLast = false;
+    AppendVerticalExtent();
+    m_open = false;
+    Stroke();
 }
 
 void SeriesStairStepRenderer::End()
 {
-    m_hasLast = false;
+    AppendVerticalExtent();
+    m_open = false;
+    Stroke();
     m_dc = nullptr;
 }
 
@@ -172,8 +308,7 @@ void SeriesFillRenderer::FlushSegment()
     // Stroke the curve on top so the edge stays visible.
     m_dc->SetPen(wxPen(m_colour));
     m_dc->SetBrush(*wxTRANSPARENT_BRUSH);
-    for ( size_t i = 1; i < m_segment.size(); ++i )
-        m_dc->DrawLine(m_segment[i - 1], m_segment[i]);
+    StrokePolyline(*m_dc, m_segment);
 
     m_segment.clear();
 }

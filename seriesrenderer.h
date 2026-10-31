@@ -175,7 +175,14 @@ using SeriesRendererFactory = std::function<std::unique_ptr<SeriesRenderer>()>;
 
 /**
  * @class SeriesLineRenderer
- * @brief Connects successive points with @c wxDC::DrawLine.
+ * @brief Connects successive points with one polyline per continuous run.
+ *
+ * @details Samples that map to the same screen column are collapsed to that
+ *          column's vertical min/max (the pixels a per-sample stroke would
+ *          cover) so a long capture is not one GDI call per sample.
+ *          One sample per column draws the same polyline as connecting each
+ *          point. The run is finished with @c wxDC::DrawLines on @ref Break
+ *          and @ref End.
  */
 class SeriesLineRenderer : public SeriesRenderer
 {
@@ -186,13 +193,27 @@ public:
     void End() override;
 
 private:
-    wxPoint m_lastScreen;
-    bool    m_hasLast = false;
+    void Append(int x, int y);
+    void EmitColumn();
+    void Stroke();
+
+    std::vector<wxPoint> m_path;
+    int  m_colX = 0;
+    int  m_colMinY = 0;
+    int  m_colMaxY = 0;
+    int  m_colLastY = 0;
+    bool m_open = false;
 };
 
 /**
  * @class SeriesStairStepRenderer
  * @brief Draws sample-and-hold stairs (horizontal segment, then vertical).
+ *
+ * @details Stairs are accumulated into one polyline. Samples that share a
+ *          screen column become a single vertical span at that column (solid
+ *          overdraw of the per-sample stairs) so a logic capture does not
+ *          issue a GDI call per edge. Zoomed in, each sample keeps its own
+ *          column and the stair polyline matches a per-sample stroke.
  */
 class SeriesStairStepRenderer : public SeriesRenderer
 {
@@ -203,8 +224,16 @@ public:
     void End() override;
 
 private:
-    wxPoint m_lastScreen;
-    bool    m_hasLast = false;
+    void Append(int x, int y);
+    void AppendVerticalExtent();
+    void Stroke();
+
+    std::vector<wxPoint> m_path;
+    int  m_colX = 0;
+    int  m_colMinY = 0;
+    int  m_colMaxY = 0;
+    int  m_colEndY = 0;
+    bool m_open = false;
 };
 
 /**
