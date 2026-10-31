@@ -43,7 +43,7 @@
         <linkerTool>
           <output>${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/wxPlottingRealTimeDemo</output>
           <linkerLibItems>
-            <linkerOptionItem>../wxPlotting/dist/Debug/GNU-Linux/libwxPlotting.a</linkerOptionItem>
+            <linkerOptionItem>../wxPlotting/dist/Debug/GNU-Linux/libwxplotting.a</linkerOptionItem>
             <linkerOptionItem>`wx-config --libs`</linkerOptionItem>
             <linkerOptionItem>-pthread</linkerOptionItem>
           </linkerLibItems>
@@ -71,7 +71,7 @@
         <linkerTool>
           <output>${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/wxPlottingRealTimeDemo</output>
           <linkerLibItems>
-            <linkerOptionItem>../wxPlotting/dist/Release/GNU-Linux/libwxPlotting.a</linkerOptionItem>
+            <linkerOptionItem>../wxPlotting/dist/Release/GNU-Linux/libwxplotting.a</linkerOptionItem>
             <linkerOptionItem>`wx-config --libs`</linkerOptionItem>
             <linkerOptionItem>-pthread</linkerOptionItem>
           </linkerLibItems>

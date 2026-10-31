@@ -3,7 +3,8 @@
 # Builds the wxPlotting static library and demo applications.
 #
 # Usage:
-#   make                 # Debug (interactive demo + library)
+#   make                 # Debug: library and both demos
+#   make demo            # Interactive demo
 #   make realtime        # Real-time demo
 #   make all             # Both demos
 #   make CONF=Release
@@ -20,12 +21,14 @@ all: demo realtime
 lib:
 	$(MAKE) -C wxPlotting CONF=$(CONF)
 
-# Demo makefile builds the library as a subproject by default.
-demo:
-	$(MAKE) -C wxPlottingDemo CONF=$(CONF)
+# Build the library once, then the apps. Each demo makefile also builds the
+# library as a subproject; skip that here so `make -j` does not archive the
+# same objects twice (ranlib then reports a truncated member).
+demo: lib
+	$(MAKE) -C wxPlottingDemo CONF=$(CONF) SUB=no
 
-realtime:
-	$(MAKE) -C wxPlottingRealTimeDemo CONF=$(CONF)
+realtime: lib
+	$(MAKE) -C wxPlottingRealTimeDemo CONF=$(CONF) SUB=no
 
 clean:
 	$(MAKE) -C wxPlottingDemo CONF=$(CONF) clean
