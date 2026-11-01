@@ -232,17 +232,20 @@ public:
     /**
      * @brief Auto-arrange visible vertical axes so their position spans do not overlap.
      * @param spacing Normalized gap between adjacent axes (default @c 0.05).
+     * @param topInset Normalized gap left below the top of the plot (default 0).
+     *        Keeps a full-scale trace off the top border. Bands are scaled
+     *        into @c [0, 1 - topInset].
      * @details Distributes bands from top to bottom in registration order:
-     *          the first vertical axis gets the topmost band (e.g. ~0.55–1.0
-     *          for two axes), the next below it, and so on. Each band has
-     *          equal height; @a spacing is reserved between bands. Does not
-     *          repaint — call @ref UpdatePlot afterward.
+     *          the first vertical axis gets the topmost band, the next below
+     *          it, and so on. Each band has equal height; @a spacing is
+     *          reserved between bands. Does not repaint — call @ref UpdatePlot
+     *          afterward.
      * @note Only @ref Axis::Visible axes of type @ref Axis::Vertical are
      *       rearranged. Hidden axes are left unchanged.
      * @warning Must be called on the UI thread.
      * @see ArrangeHorizontalAxes, Axis::SetPosition
      */
-    void ArrangeVerticalAxes(double spacing = 0.05);
+    void ArrangeVerticalAxes(double spacing = 0.05, double topInset = 0.0);
 
     /**
      * @brief Auto-arrange visible horizontal axes so their position spans do not overlap.
@@ -645,7 +648,8 @@ protected:
      * @param topToBottomIfVertical When @c true and @a type is vertical, first
      *        axis is placed at the top; horizontal always goes left-to-right.
      */
-    void ArrangeAxesOfType(Axis::AxisType type, double spacing, bool topToBottom);
+    void ArrangeAxesOfType(Axis::AxisType type, double spacing, bool topToBottom,
+                           double topInset = 0.0);
 
 private:
     std::list<Axis> m_axisList;

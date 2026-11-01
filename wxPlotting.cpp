@@ -268,10 +268,14 @@ const Series* wxPlotting::GetSeries(const wxString& name) const
 }
 
 
-void wxPlotting::ArrangeVerticalAxes(double spacing)
+void wxPlotting::ArrangeVerticalAxes(double spacing, double topInset)
 {
     // Top → bottom: first registered visible vertical axis is highest on screen.
-    ArrangeAxesOfType(Axis::Vertical, spacing, true);
+    if ( topInset < 0.0 )
+        topInset = 0.0;
+    if ( topInset > 0.4 )
+        topInset = 0.4;
+    ArrangeAxesOfType(Axis::Vertical, spacing, true, topInset);
 }
 
 void wxPlotting::ArrangeHorizontalAxes(double spacing)
@@ -280,7 +284,8 @@ void wxPlotting::ArrangeHorizontalAxes(double spacing)
     ArrangeAxesOfType(Axis::Horizontal, spacing, false);
 }
 
-void wxPlotting::ArrangeAxesOfType(Axis::AxisType type, double spacing, bool topToBottom)
+void wxPlotting::ArrangeAxesOfType(Axis::AxisType type, double spacing,
+                                  bool topToBottom, double topInset)
 {
     if ( spacing < 0.0 )
         spacing = 0.0;
@@ -302,9 +307,14 @@ void wxPlotting::ArrangeAxesOfType(Axis::AxisType type, double spacing, bool top
     if ( n == 0 )
         return;
 
+    // Vertical stack can stop short of the top border so a full-scale
+    // sample is not drawn on the frame.
+    const double topLimit =
+        (type == Axis::Vertical && topToBottom) ? (1.0 - topInset) : 1.0;
+
     if ( n == 1 )
     {
-        axes[0]->SetPosition(0.0, 1.0);
+        axes[0]->SetPosition(0.0, topLimit);
         return;
     }
 
@@ -332,8 +342,11 @@ void wxPlotting::ArrangeAxesOfType(Axis::AxisType type, double spacing, bool top
         if ( type == Axis::Vertical && topToBottom )
         {
             // i = 0 at top (high normalized Y), then downward.
+            // Layout is computed in [0, 1] and then scaled down to topLimit.
             hi = 1.0 - static_cast<double>(i) * (band + gap);
             lo = hi - band;
+            hi *= topLimit;
+            lo *= topLimit;
         }
         else
         {
