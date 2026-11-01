@@ -1,7 +1,7 @@
 #
 # Generated Makefile - do not edit!
 #
-# Real-time demo linking libwxPlotting.a
+# Real-time demo linking libwxplotting.a
 #
 
 # Environment
@@ -49,7 +49,7 @@ FFLAGS=
 ASFLAGS=
 
 # Link Libraries and Options
-WXPLOTTING_LIB=../wxPlotting/dist/${CND_CONF}/${CND_PLATFORM}/libwxPlotting.a
+WXPLOTTING_LIB=../wxPlotting/dist/${CND_CONF}/${CND_PLATFORM}/libwxplotting.a
 LDLIBSOPTIONS=${WXPLOTTING_LIB} `wx-config --libs` -pthread
 
 # Build Targets

@@ -5,7 +5,7 @@ so the **library** and **demo** must live in separate folders.
 
 | Project | Path | Output |
 |---------|------|--------|
-| **wxPlotting** (static library) | `build/Linux/wxPlotting/` | `dist/…/libwxPlotting.a` |
+| **wxPlotting** (static library) | `build/Linux/wxPlotting/` | `dist/…/libwxplotting.a` |
 | **wxPlottingDemo** (application) | `build/Linux/wxPlottingDemo/` | `dist/…/wxPlottingDemo` |
 | **wxPlottingRealTimeDemo** (application) | `build/Linux/wxPlottingRealTimeDemo/` | `dist/…/wxPlottingRealTimeDemo` |
 

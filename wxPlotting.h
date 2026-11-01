@@ -270,7 +270,8 @@ public:
      * @return @c true if @a out is valid and drawing ran; @c false on bad size or
      *         bitmap creation failure.
      * @details Does not change the on-screen control buffer or client size.
-     *          Measurement cursors are not drawn (window overlay only).
+     *          Measurement cursors and the measure overlay are not drawn
+     *          (window overlay only).
      *          Geometry uses the same margins and axis layout as the interactive
      *          control. The host should pass the final pixel dimensions (e.g.
      *          video frame size); this API does not scale or supersample.
@@ -473,6 +474,52 @@ public:
      */
     PlotCursorMode GetCursorMode() const { return m_cursorMode; }
 
+    /**
+     * @brief Show a two-point delta measurement on the overlay.
+     * @param horizontalAxis Name of the axis that maps @a x0 and @a x1.
+     * @param verticalAxis Name of the axis that maps @a y0 and @a y1.
+     * @param x0 Anchor value in horizontal-axis sample units.
+     * @param y0 Anchor value in vertical-axis sample units.
+     * @param x1 Drag value in horizontal-axis sample units.
+     * @param y1 Drag value in vertical-axis sample units.
+     * @details Draws a horizontal and a vertical double arrow between the
+     *          points, with each distance at the arrow midpoint. Distances
+     *          use @ref Axis::FormatTickValue (same units as cursor readouts).
+     *          Values stay in sample units, so pan and zoom keep the measure
+     *          attached to the data. Does not rebuild the plot buffer.
+     * @note Call on the UI thread.
+     * @see ClearMeasureOverlay, ClientToAxisValue
+     */
+    void SetMeasureOverlay(const wxString& horizontalAxis,
+                           const wxString& verticalAxis,
+                           double x0, double y0,
+                           double x1, double y1);
+
+    /**
+     * @brief Hide the measure overlay.
+     * @see SetMeasureOverlay
+     */
+    void ClearMeasureOverlay();
+
+    /**
+     * @brief True while a measure overlay is visible.
+     */
+    bool HasMeasureOverlay() const { return m_measureVisible; }
+
+    /**
+     * @brief Map a client point into one axis's sample units.
+     * @param clientPos Position relative to this window's client area.
+     * @param axis Axis to convert through (horizontal uses X, vertical uses Y).
+     * @param value Receives the sample-unit value (same space as @ref Axis::SetRange).
+     * @return @c false if the plot rectangle is empty or @a axis has no orientation.
+     * @details The point is clamped to the plot rectangle first, then converted
+     *          with the same normalization as the measurement cursors. Pass the
+     *          result through @ref Axis::FormatTickValue for a readout.
+     */
+    bool ClientToAxisValue(const wxPoint& clientPos,
+                           const Axis& axis,
+                           double& value) const;
+
 protected:
     /**
      * @brief Draw the full plot into @a dc (axes, series; no buffer clear).
@@ -489,7 +536,12 @@ protected:
     void OnPaint(wxPaintEvent& event);
 
     /**
-     * @brief Size handler: grows/shrinks canvas and rebuilds when needed.
+     * @brief Size handler: grows/shrinks the canvas.
+     * @details A cheap last render is rebuilt immediately. After an expensive
+     *          render (a large capture), live resize only stretches the
+     *          previous frame and rebuilds once the size settles. Windows
+     *          size-drag is modal and waits for each paint; a full series
+     *          redraw on every step is what makes the frame lag.
      */
     void OnSize(wxSizeEvent& event);
 
@@ -510,8 +562,25 @@ protected:
 
     /**
      * @brief Trailing-edge timer for rate-limited @ref UpdatePlot / overlay refresh.
+     * @details Also receives the resize-settle timer; that id is dispatched
+     *          to @ref OnResizeSettleTimer.
      */
     void OnUpdateThrottleTimer(wxTimerEvent& event);
+
+    /**
+     * @brief Rebuild the plot after a live resize has paused.
+     */
+    void OnResizeSettleTimer();
+
+    /**
+     * @brief Update @c m_plot from @c m_drawingSize without touching the bitmap.
+     */
+    void UpdatePlotRect();
+
+    /**
+     * @brief Blit @c m_buffer. Stretches it when a resize rebuild is still pending.
+     */
+    void PaintBuffer(wxDC& dc);
 
     /**
      * @brief Recreate the off-screen bitmap and update the plot rectangle.
@@ -545,6 +614,13 @@ protected:
      * @param dc Paint DC already prepared for scroll.
      */
     void DrawCursors(wxDC& dc);
+
+    /**
+     * @brief Draw the two-point measure overlay on the paint DC.
+     * @param dc Paint DC already prepared for scroll.
+     * @see SetMeasureOverlay
+     */
+    void DrawMeasure(wxDC& dc);
 
     /**
      * @brief Sync effective drawing size from client size and minimum.
@@ -592,6 +668,16 @@ private:
     bool           m_cursorTracking = false; ///< True when pointer is over the control.
     wxPoint        m_cursorCanvasPos;        ///< Last mouse position in canvas coords.
 
+    // Two-point measure overlay (also paint-DC only). Sample units, not pixels,
+    // so the arrows track pan/zoom. See SetMeasureOverlay.
+    bool     m_measureVisible = false;
+    wxString m_measureHorzAxis;
+    wxString m_measureVertAxis;
+    double   m_measureX0 = 0.0;
+    double   m_measureY0 = 0.0;
+    double   m_measureX1 = 0.0;
+    double   m_measureY1 = 0.0;
+
     // --- Paint rate limiting (~60 Hz) --------------------------------------
     // High-frequency mouse motion (especially on Windows) can request more
     // full-buffer rebuilds than the UI can sustain. Coalesce to this interval
@@ -601,6 +687,15 @@ private:
     wxLongLong m_lastFlushMs = 0;       ///< Time of last FlushPendingUpdate.
     bool       m_fullUpdatePending = false;    ///< Need Render() before paint.
     bool       m_overlayRefreshPending = false;///< Need Refresh only (cursors).
+
+    // Live resize. See OnSize. Budget is the last full Render(); above it we
+    // stretch the previous bitmap until size events pause.
+    static const int kLiveResizeBudgetMs = 10;
+    static const int kResizeSettleMs = 50;
+    wxTimer m_resizeSettleTimer;
+    long    m_lastRenderMs = 0;
+    bool    m_resizeRenderPending = false;
+    wxSize  m_renderedSize; ///< Drawing size m_buffer was last rendered at.
 
     wxDECLARE_DYNAMIC_CLASS(wxPlotting);
     wxDECLARE_EVENT_TABLE();
