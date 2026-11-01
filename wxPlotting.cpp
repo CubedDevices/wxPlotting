@@ -209,6 +209,10 @@ void wxPlotting::Clear()
 {
     ClearAxes();
     ClearSeries();
+    // Drop a stale measure without an extra refresh; the caller repaints.
+    m_measureVisible = false;
+    m_measureHorzAxis.clear();
+    m_measureVertAxis.clear();
 }
 
 Axis* wxPlotting::GetAxis(const wxString& name)
@@ -1463,8 +1467,9 @@ void wxPlotting::OnPaint(wxPaintEvent& WXUNUSED(event))
     if ( m_buffer.IsOk() )
         PaintBuffer(dc);
 
-    // Cursors are an overlay — not baked into the buffer (cheap mouse tracking).
+    // Cursors and the measure drag are overlays — not baked into the buffer.
     DrawCursors(dc);
+    DrawMeasure(dc);
 }
 
 void wxPlotting::OnSize(wxSizeEvent& event)
@@ -1533,8 +1538,168 @@ void wxPlotting::OnLeaveWindow(wxMouseEvent& event)
 }
 
 // ----------------------------------------------------------------------------
-// measurement cursors
+// measurement cursors and delta measure
 // ----------------------------------------------------------------------------
+
+namespace
+{
+    // Yellow value on a dark backdrop — shared by cursor "both" and measure.
+    void DrawValueReadout(wxDC& dc, const wxString& text, int tx, int ty)
+    {
+        if ( text.IsEmpty() )
+            return;
+
+        const wxSize ts = dc.GetTextExtent(text);
+        dc.SetPen(*wxTRANSPARENT_PEN);
+        dc.SetBrush(wxBrush(wxColour(0, 0, 0, 160)));
+        dc.DrawRectangle(tx - 2, ty - 1, ts.x + 4, ts.y + 2);
+        dc.SetTextForeground(wxColour(255, 255, 0));
+        dc.SetBackgroundMode(wxTRANSPARENT);
+        dc.DrawText(text, tx, ty);
+    }
+
+    // Filled double-headed arrow. Returns false when the segment is too short
+    // to draw. Arrowheads are omitted on very short spans; the shaft still counts.
+    bool DrawDoubleArrow(wxDC& dc, const wxPoint& a, const wxPoint& b)
+    {
+        const double dx = static_cast<double>(b.x - a.x);
+        const double dy = static_cast<double>(b.y - a.y);
+        const double len = std::sqrt(dx * dx + dy * dy);
+        if ( len < 2.0 )
+            return false;
+
+        dc.DrawLine(a, b);
+
+        const double ah = wxMin(8.0, len * 0.45);
+        if ( ah < 3.0 )
+            return true;
+
+        const double ux = dx / len;
+        const double uy = dy / len;
+        const double aw = ah * 0.42;
+        const double px = -uy;
+        const double py = ux;
+
+        const wxBrush saved = dc.GetBrush();
+        dc.SetBrush(wxBrush(wxColour(255, 255, 0)));
+
+        wxPoint head[3];
+        head[0] = a;
+        head[1] = wxPoint(wxRound(a.x + ux * ah + px * aw),
+                          wxRound(a.y + uy * ah + py * aw));
+        head[2] = wxPoint(wxRound(a.x + ux * ah - px * aw),
+                          wxRound(a.y + uy * ah - py * aw));
+        dc.DrawPolygon(3, head);
+
+        head[0] = b;
+        head[1] = wxPoint(wxRound(b.x - ux * ah + px * aw),
+                          wxRound(b.y - uy * ah + py * aw));
+        head[2] = wxPoint(wxRound(b.x - ux * ah - px * aw),
+                          wxRound(b.y - uy * ah - py * aw));
+        dc.DrawPolygon(3, head);
+
+        dc.SetBrush(saved);
+        return true;
+    }
+
+    // Distance label beside an arrow, centered on its midpoint.
+    // horizontalArrow selects the axis of the shaft; outward is -1/+1 on the
+    // perpendicular (screen Y for a horizontal shaft, screen X for a vertical one).
+    void DrawMeasureDistance(wxDC& dc, const wxRect& plot, const wxString& text,
+                             const wxPoint& mid, bool horizontalArrow, int outward)
+    {
+        if ( text.IsEmpty() )
+            return;
+
+        const wxSize ts = dc.GetTextExtent(text);
+        int tx = 0;
+        int ty = 0;
+        if ( horizontalArrow )
+        {
+            tx = mid.x - ts.x / 2;
+            ty = (outward < 0) ? (mid.y - ts.y - 6) : (mid.y + 6);
+        }
+        else
+        {
+            ty = mid.y - ts.y / 2;
+            tx = (outward > 0) ? (mid.x + 8) : (mid.x - ts.x - 8);
+        }
+
+        if ( tx < plot.GetLeft() )
+            tx = plot.GetLeft();
+        if ( ty < plot.GetTop() )
+            ty = plot.GetTop();
+        if ( tx + ts.x > plot.GetRight() )
+            tx = wxMax(plot.GetLeft(), plot.GetRight() - ts.x);
+        if ( ty + ts.y > plot.GetBottom() )
+            ty = wxMax(plot.GetTop(), plot.GetBottom() - ts.y);
+
+        DrawValueReadout(dc, text, tx, ty);
+    }
+} // namespace
+
+bool wxPlotting::ClientToAxisValue(const wxPoint& clientPos,
+                                   const Axis& axis,
+                                   double& value) const
+{
+    if ( m_plot.IsEmpty() || m_plot.GetWidth() <= 0 || m_plot.GetHeight() <= 0 )
+        return false;
+
+    int cx = clientPos.x;
+    int cy = clientPos.y;
+    CalcUnscrolledPosition(clientPos.x, clientPos.y, &cx, &cy);
+
+    // Same clamp as the cursor guides so a drag past the plot edge sticks
+    // to the rectangle the arrows are drawn in.
+    if ( cx < m_plot.GetLeft() ) cx = m_plot.GetLeft();
+    if ( cx > m_plot.GetRight() ) cx = m_plot.GetRight();
+    if ( cy < m_plot.GetTop() ) cy = m_plot.GetTop();
+    if ( cy > m_plot.GetBottom() ) cy = m_plot.GetBottom();
+
+    if ( axis.GetAxisType() == Axis::Horizontal )
+    {
+        const double norm =
+            (cx - m_plot.x) / static_cast<double>(m_plot.GetWidth());
+        value = axis.InverseConvertValue(norm);
+        return true;
+    }
+
+    if ( axis.GetAxisType() == Axis::Vertical )
+    {
+        const double norm =
+            1.0 - (cy - m_plot.y) / static_cast<double>(m_plot.GetHeight());
+        value = axis.InverseConvertValue(norm);
+        return true;
+    }
+
+    return false;
+}
+
+void wxPlotting::SetMeasureOverlay(const wxString& horizontalAxis,
+                                   const wxString& verticalAxis,
+                                   double x0, double y0,
+                                   double x1, double y1)
+{
+    m_measureVisible = true;
+    m_measureHorzAxis = horizontalAxis;
+    m_measureVertAxis = verticalAxis;
+    m_measureX0 = x0;
+    m_measureY0 = y0;
+    m_measureX1 = x1;
+    m_measureY1 = y1;
+    RequestOverlayRefresh();
+}
+
+void wxPlotting::ClearMeasureOverlay()
+{
+    if ( !m_measureVisible && m_measureHorzAxis.IsEmpty() && m_measureVertAxis.IsEmpty() )
+        return;
+
+    m_measureVisible = false;
+    m_measureHorzAxis.clear();
+    m_measureVertAxis.clear();
+    RequestOverlayRefresh();
+}
 
 void wxPlotting::SetCursorMode(PlotCursorMode mode)
 {
@@ -1639,12 +1804,70 @@ void wxPlotting::DrawCursors(wxDC& dc)
         if ( ty < m_plot.GetTop() )
             ty = y + 6;
 
-        // Slight backdrop for readability on dense plots.
+        DrawValueReadout(dc, readout, tx, ty);
+    }
+}
+
+void wxPlotting::DrawMeasure(wxDC& dc)
+{
+    if ( !m_measureVisible )
+        return;
+    if ( m_plot.IsEmpty() || m_plot.GetWidth() <= 0 || m_plot.GetHeight() <= 0 )
+        return;
+
+    const Axis* horz = GetAxis(m_measureHorzAxis);
+    const Axis* vert = GetAxis(m_measureVertAxis);
+    if ( !horz || !vert )
+        return;
+    if ( horz->GetAxisType() != Axis::Horizontal ||
+         vert->GetAxisType() != Axis::Vertical )
+        return;
+
+    // Anchor p0, drag point p1. The shaft is an L: horizontal at the anchor's
+    // Y, then vertical out to the drag point. Each leg's length is that delta.
+    const wxPoint p0 = PlotToScreen(m_plot, wxRealPoint(
+        horz->ConvertValue(m_measureX0),
+        vert->ConvertValue(m_measureY0)));
+    const wxPoint p1 = PlotToScreen(m_plot, wxRealPoint(
+        horz->ConvertValue(m_measureX1),
+        vert->ConvertValue(m_measureY1)));
+    const wxPoint corner(p1.x, p0.y);
+
+    wxDCClipper clip(dc, m_plot);
+
+    dc.SetPen(wxPen(wxColour(255, 255, 0), 1, wxPENSTYLE_SOLID));
+    dc.SetBrush(wxBrush(wxColour(255, 255, 0)));
+    dc.SetFont(GetFont());
+    dc.SetTextForeground(wxColour(255, 255, 0));
+
+    const bool drewH = DrawDoubleArrow(dc, p0, corner);
+    const bool drewV = DrawDoubleArrow(dc, corner, p1);
+
+    // Press, before the pointer has moved: mark the anchor.
+    if ( !drewH && !drewV )
+    {
         dc.SetPen(*wxTRANSPARENT_PEN);
-        dc.SetBrush(wxBrush(wxColour(0, 0, 0, 160)));
-        dc.DrawRectangle(tx - 2, ty - 1, ts.x + 4, ts.y + 2);
-        dc.SetTextForeground(wxColour(255, 255, 0));
-        dc.DrawText(readout, tx, ty);
+        dc.DrawCircle(p0, 3);
+        return;
+    }
+
+    if ( drewH )
+    {
+        const wxPoint mid((p0.x + corner.x) / 2, (p0.y + corner.y) / 2);
+        // Keep the readout on the outside of the L.
+        const int outwardY = (p1.y >= p0.y) ? -1 : 1;
+        DrawMeasureDistance(dc, m_plot,
+            horz->FormatTickValue(std::fabs(m_measureX1 - m_measureX0)),
+            mid, true, outwardY);
+    }
+
+    if ( drewV )
+    {
+        const wxPoint mid((corner.x + p1.x) / 2, (corner.y + p1.y) / 2);
+        const int outwardX = (p1.x >= p0.x) ? 1 : -1;
+        DrawMeasureDistance(dc, m_plot,
+            vert->FormatTickValue(std::fabs(m_measureY1 - m_measureY0)),
+            mid, false, outwardX);
     }
 }
 
