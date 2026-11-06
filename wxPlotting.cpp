@@ -1580,12 +1580,15 @@ void wxPlotting::DrawAnnotationSeries(wxDC& dc, const Series& series,
         }
 
         const wxSize ts = dc.GetTextExtent(span.text);
-        if ( ts.x + 4 > bar.GetWidth() )
-            continue;
-
-        dc.SetClippingRegion(bar);
-        const int tx = bar.x + (bar.GetWidth() - ts.x) / 2;
+        // A tall row uses a large face, so the full string is often wider
+        // than the span. Clip to the bar and show the start of the label
+        // instead of hiding it until the span can hold every glyph.
+        // Center only when the whole string fits.
+        int tx = bar.x + 2;
+        if ( ts.x + 4 <= bar.GetWidth() )
+            tx = bar.x + (bar.GetWidth() - ts.x) / 2;
         const int ty = bar.y + (bar.GetHeight() - ts.y) / 2;
+        dc.SetClippingRegion(bar);
         dc.DrawText(span.text, tx, ty);
         dc.DestroyClippingRegion();
     }
