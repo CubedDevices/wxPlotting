@@ -45,7 +45,7 @@
           <incDir>
             <pElem>../../..</pElem>
           </incDir>
-          <commandLine>`wx-config --cxxflags`</commandLine>
+          <commandLine>`/usr/local/bin/wx-config --cxxflags`</commandLine>
         </ccTool>
         <archiverTool>
         </archiverTool>
@@ -79,7 +79,7 @@
           <incDir>
             <pElem>../../..</pElem>
           </incDir>
-          <commandLine>`wx-config --cxxflags`</commandLine>
+          <commandLine>`/usr/local/bin/wx-config --cxxflags`</commandLine>
         </ccTool>
         <archiverTool>
         </archiverTool>

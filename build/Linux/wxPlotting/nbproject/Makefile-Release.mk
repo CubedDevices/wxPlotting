@@ -43,8 +43,8 @@ OBJECTFILES= \
 CFLAGS=
 
 # CC Compiler Flags
-CCFLAGS=`wx-config --cxxflags` 
-CXXFLAGS=`wx-config --cxxflags` 
+CCFLAGS=`/usr/local/bin/wx-config --cxxflags` 
+CXXFLAGS=`/usr/local/bin/wx-config --cxxflags` 
 
 # Fortran Compiler Flags
 FFLAGS=

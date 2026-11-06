@@ -80,15 +80,38 @@ public:
     typedef std::vector<wxRealPoint> Points;
 
     /**
+     * @brief One labeled time span drawn in an @ref Annotation series.
+     * @details @c x0 and @c x1 are horizontal-axis data units (typically time).
+     *          @c row stacks spans inside the vertical axis band; row 0 is the
+     *          top of the band.
+     */
+    struct SeriesAnnotation
+    {
+        double   x0 = 0.0;
+        double   x1 = 0.0;
+        int      row = 0;
+        wxString text;
+    };
+
+    /**
+     * @brief Contiguous annotation storage for @ref SeriesType::Annotation.
+     */
+    typedef std::vector<SeriesAnnotation> Annotations;
+
+    /**
      * @enum SeriesType
-     * @brief Semantic type of the series (extensibility; drawing uses doubles).
+     * @brief Semantic type of the series.
+     * @details @ref Doubles, @ref Date, and @ref Time use the point buffer.
+     *          @ref Annotation uses @ref SetAnnotations and is not stroked
+     *          as a polyline.
      */
     enum SeriesType
     {
-        None,     ///< Unspecified.
-        Doubles,  ///< Numeric X/Y (default drawing path).
-        Date,     ///< Reserved for date X values.
-        Time      ///< Reserved for time X values.
+        None,       ///< Unspecified.
+        Doubles,    ///< Numeric X/Y (default drawing path).
+        Date,       ///< Reserved for date X values.
+        Time,       ///< Reserved for time X values.
+        Annotation  ///< Time-span bars with text (protocol decode).
     };
 
 public:
@@ -124,6 +147,7 @@ public:
     {
         std::lock_guard<std::mutex> lock(other.m_mutex);
         m_data = other.m_data;
+        m_annotations = other.m_annotations;
     }
 
     /**
@@ -146,9 +170,11 @@ public:
         const size_t maxPoints = other.m_maxPoints;
 
         Points dataCopy;
+        Annotations annotationCopy;
         {
             std::lock_guard<std::mutex> lock(other.m_mutex);
             dataCopy = other.m_data;
+            annotationCopy = other.m_annotations;
         }
 
         Visible = visible;
@@ -164,6 +190,7 @@ public:
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_data = std::move(dataCopy);
+            m_annotations = std::move(annotationCopy);
             EnforceMaxPoints();
         }
         return *this;
@@ -186,6 +213,7 @@ public:
     {
         std::lock_guard<std::mutex> lock(other.m_mutex);
         m_data = std::move(other.m_data);
+        m_annotations = std::move(other.m_annotations);
     }
 
     /**
@@ -208,13 +236,16 @@ public:
         m_maxPoints = other.m_maxPoints;
 
         Points dataMove;
+        Annotations annotationMove;
         {
             std::lock_guard<std::mutex> lock(other.m_mutex);
             dataMove = std::move(other.m_data);
+            annotationMove = std::move(other.m_annotations);
         }
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_data = std::move(dataMove);
+            m_annotations = std::move(annotationMove);
             EnforceMaxPoints();
         }
         return *this;
@@ -331,6 +362,45 @@ public:
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_data.size();
+    }
+
+    /**
+     * @brief Replace annotation spans (moves when possible).
+     * @param spans New spans. Used when @ref GetSeriesType is @ref Annotation.
+     * @note Thread-safe. Call @ref wxPlotting::UpdatePlot on the UI thread after.
+     */
+    void SetAnnotations(Annotations spans)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_annotations = std::move(spans);
+    }
+
+    /**
+     * @brief Return a snapshot copy of the annotation spans.
+     * @note Thread-safe.
+     */
+    Annotations GetAnnotations() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_annotations;
+    }
+
+    /**
+     * @brief Rows occupied by the current spans (max row index + 1).
+     * @return @c 0 when there are no spans.
+     * @note Thread-safe.
+     */
+    int AnnotationRowCount() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        int rows = 0;
+        for ( const auto& span : m_annotations )
+        {
+            const int next = span.row + 1;
+            if ( next > rows )
+                rows = next;
+        }
+        return rows;
     }
 
     /**
@@ -488,7 +558,8 @@ private:
     size_t   m_maxPoints = 0;  ///< 0 = unlimited; else max retained samples.
 
     Points m_data;             ///< Sample buffer (guarded by @ref m_mutex).
-    mutable std::mutex m_mutex;///< Protects @ref m_data only.
+    Annotations m_annotations; ///< Span buffer (guarded by @ref m_mutex).
+    mutable std::mutex m_mutex;///< Protects @ref m_data and @ref m_annotations.
 };
 
 #endif

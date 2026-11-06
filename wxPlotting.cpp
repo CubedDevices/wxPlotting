@@ -26,9 +26,11 @@
 #include "seriesrenderer.h"
 #include "plotcoords.h"
 
+#include "wx/brush.h"
 #include "wx/dcclient.h"
 #include "wx/dcmemory.h"
 #include "wx/image.h"
+#include "wx/pen.h"
 #include "wx/settings.h"
 #include "wx/stopwatch.h"
 #include "wx/timer.h"
@@ -307,6 +309,38 @@ void wxPlotting::ArrangeAxesOfType(Axis::AxisType type, double spacing,
     if ( n == 0 )
         return;
 
+    // Annotation lanes take one share per text row so each row is as tall
+    // as a digital channel. Other axes stay at one share.
+    std::vector<double> weights(n, 1.0);
+    double weightSum = 0.0;
+    if ( type == Axis::Vertical )
+    {
+        for ( size_t i = 0; i < n; ++i )
+        {
+            for ( const Series& series : m_seriesList )
+            {
+                if ( !series.Visible )
+                    continue;
+                if ( series.GetSeriesType() != Series::Annotation )
+                    continue;
+                if ( series.VerticalAxis.CompareTo(axes[i]->GetName()) != 0 )
+                    continue;
+                int rows = series.AnnotationRowCount();
+                if ( rows < 1 )
+                    rows = 1;
+                if ( static_cast<double>(rows) > weights[i] )
+                    weights[i] = static_cast<double>(rows);
+            }
+            weightSum += weights[i];
+        }
+    }
+    else
+    {
+        weightSum = static_cast<double>(n);
+    }
+    if ( weightSum <= 0.0 )
+        weightSum = 1.0;
+
     // Vertical stack can stop short of the top border so a full-scale
     // sample is not drawn on the frame.
     const double topLimit =
@@ -318,41 +352,44 @@ void wxPlotting::ArrangeAxesOfType(Axis::AxisType type, double spacing,
         return;
     }
 
-    // Equal bands with fixed gaps; shrink gaps if they would leave no room.
+    // Bands share the plot in proportion to weight, with fixed gaps.
+    // Shrink gaps if they would leave no room.
     const double minBand = 0.02;
     double gap = spacing;
     double totalGap = gap * static_cast<double>(n - 1);
     double usable = 1.0 - totalGap;
-    if ( usable < minBand * static_cast<double>(n) )
+    const double minTotal = minBand * weightSum;
+    if ( usable < minTotal )
     {
-        usable = minBand * static_cast<double>(n);
+        usable = minTotal;
         if ( usable > 1.0 )
             usable = 1.0;
         totalGap = 1.0 - usable;
-        gap = totalGap / static_cast<double>(n - 1);
+        gap = (n > 1) ? totalGap / static_cast<double>(n - 1) : 0.0;
     }
 
-    const double band = usable / static_cast<double>(n);
-
+    // Walk from the top. Each axis consumes its share, then a gap.
+    double cursor = 1.0;
     for ( size_t i = 0; i < n; ++i )
     {
+        const double band = usable * (weights[i] / weightSum);
         double lo = 0.0;
         double hi = 1.0;
 
         if ( type == Axis::Vertical && topToBottom )
         {
-            // i = 0 at top (high normalized Y), then downward.
-            // Layout is computed in [0, 1] and then scaled down to topLimit.
-            hi = 1.0 - static_cast<double>(i) * (band + gap);
-            lo = hi - band;
+            hi = cursor;
+            lo = cursor - band;
+            cursor = lo - gap;
             hi *= topLimit;
             lo *= topLimit;
         }
         else
         {
             // Horizontal (or bottom-to-top if ever requested): low → high.
-            lo = static_cast<double>(i) * (band + gap);
+            lo = (1.0 - cursor);
             hi = lo + band;
+            cursor -= band + gap;
         }
 
         // Numerical safety into [0, 1].
@@ -1371,6 +1408,12 @@ void wxPlotting::DrawSeries(wxMemoryDC& dc, const wxSize& size)
         if (!foundVertical || !foundHorizontal)
             continue;
 
+        if (iter->GetSeriesType() == Series::Annotation)
+        {
+            DrawAnnotationSeries(dc, *iter, *horzAxis, *vertAxis);
+            continue;
+        }
+
         // Renderer lives only for this series draw pass. It receives
         // axis-converted coordinates and maps them to pixels via m_plot.
         // Custom style uses Series::CustomRendererFactory (may return null).
@@ -1428,6 +1471,124 @@ void wxPlotting::DrawSeries(wxMemoryDC& dc, const wxSize& size)
         // unique_ptr destroys the renderer here.
     }
 
+}
+
+void wxPlotting::DrawAnnotationSeries(wxDC& dc, const Series& series,
+                                      const Axis& horz, const Axis& vert)
+{
+    const Series::Annotations spans = series.GetAnnotations();
+    if ( spans.empty() )
+        return;
+
+    int rowCount = 1;
+    for ( const auto& span : spans )
+    {
+        if ( span.row + 1 > rowCount )
+            rowCount = span.row + 1;
+    }
+
+    const double bandLo = wxMin(vert.GetStart(), vert.GetEnd());
+    const double bandHi = wxMax(vert.GetStart(), vert.GetEnd());
+    const double rowH = (bandHi - bandLo) / static_cast<double>(rowCount);
+    // A hair of inset keeps neighbouring rows from touching. The glyph
+    // size below is taken from whatever height is left.
+    double pad = rowH * 0.04;
+    if ( pad * 2.0 >= rowH )
+        pad = 0.0;
+
+    const double xMin = wxMin(horz.GetRangeStart(), horz.GetRangeEnd());
+    const double xMax = wxMax(horz.GetRangeStart(), horz.GetRangeEnd());
+
+    dc.SetBackgroundMode(wxTRANSPARENT);
+
+    const wxColour fill = series.Foreground;
+    const int lum = (fill.Red() * 30 + fill.Green() * 59 + fill.Blue() * 11) / 100;
+    const wxColour textColour = (lum > 160) ? *wxBLACK : *wxWHITE;
+    dc.SetTextForeground(textColour);
+    dc.SetPen(wxPen(fill));
+    dc.SetBrush(wxBrush(fill));
+
+    for ( const auto& span : spans )
+    {
+        double x0 = span.x0;
+        double x1 = span.x1;
+        if ( x0 > x1 )
+        {
+            const double tmp = x0;
+            x0 = x1;
+            x1 = tmp;
+        }
+        if ( x1 < xMin || x0 > xMax )
+            continue;
+        if ( x0 < xMin )
+            x0 = xMin;
+        if ( x1 > xMax )
+            x1 = xMax;
+
+        int row = span.row;
+        if ( row < 0 )
+            row = 0;
+        if ( row >= rowCount )
+            row = rowCount - 1;
+
+        // Row 0 sits at the top of the vertical axis band.
+        const double yTop = bandHi - static_cast<double>(row) * rowH - pad;
+        const double yBot = bandHi - static_cast<double>(row + 1) * rowH + pad;
+        if ( yBot >= yTop )
+            continue;
+
+        const wxPoint p0 = PlotToScreen(m_plot, wxRealPoint(horz.ConvertValue(x0), yTop));
+        const wxPoint p1 = PlotToScreen(m_plot, wxRealPoint(horz.ConvertValue(x1), yBot));
+
+        int left = wxMin(p0.x, p1.x);
+        int right = wxMax(p0.x, p1.x);
+        const int top = wxMin(p0.y, p1.y);
+        const int bottom = wxMax(p0.y, p1.y);
+        if ( right <= left )
+            right = left + 1;
+
+        // A one-pixel gap keeps adjacent spans from fusing into one bar.
+        if ( right - left > 4 )
+        {
+            left += 1;
+            right -= 1;
+        }
+
+        const wxRect bar(wxPoint(left, top), wxPoint(right, bottom));
+        dc.DrawRectangle(bar);
+
+        if ( span.text.empty() )
+            continue;
+
+        // Fill the row vertically. The old fixed 9pt face left a short
+        // glyph in the middle of a much taller bar. Point size is derived
+        // from the bar, then corrected once if the DC's PPI undershoots.
+        int targetPx = bar.GetHeight() - 2;
+        if ( targetPx < 1 )
+            targetPx = 1;
+        if ( targetPx > 64 )
+            targetPx = 64;
+        const wxSize ppi = dc.GetPPI();
+        const double ppiY = (ppi.y > 0) ? static_cast<double>(ppi.y) : 96.0;
+        double points = static_cast<double>(targetPx) * 72.0 / ppiY;
+        dc.SetFont(wxFontInfo(points).Family(wxFONTFAMILY_MODERN));
+        const int probe = dc.GetTextExtent("Hg").y;
+        if ( probe > 0 && probe < (targetPx * 3) / 4 )
+        {
+            points *= static_cast<double>(targetPx) / static_cast<double>(probe);
+            dc.SetFont(wxFontInfo(points).Family(wxFONTFAMILY_MODERN));
+        }
+
+        const wxSize ts = dc.GetTextExtent(span.text);
+        if ( ts.x + 4 > bar.GetWidth() )
+            continue;
+
+        dc.SetClippingRegion(bar);
+        const int tx = bar.x + (bar.GetWidth() - ts.x) / 2;
+        const int ty = bar.y + (bar.GetHeight() - ts.y) / 2;
+        dc.DrawText(span.text, tx, ty);
+        dc.DestroyClippingRegion();
+    }
 }
 
 // ----------------------------------------------------------------------------

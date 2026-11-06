@@ -613,6 +613,14 @@ protected:
     void DrawSeries(wxMemoryDC& dc, const wxSize& size);
 
     /**
+     * @brief Draw one @ref SeriesType::Annotation series as labeled time bars.
+     * @details Skips the point renderer. Each span's X is mapped with the
+     *          horizontal axis; rows split the vertical axis band.
+     */
+    void DrawAnnotationSeries(wxDC& dc, const Series& series,
+                              const Axis& horz, const Axis& vert);
+
+    /**
      * @brief Draw measurement cursor overlay on the paint DC (after buffer blit).
      * @param dc Paint DC already prepared for scroll.
      */
